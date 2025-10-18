@@ -53,8 +53,7 @@
 
 # Backup/Autosave files created by various tools
 *~
-# Ignore all meta files that were created by the Unity Editor on the asset files that are being ignored (e.g., in the Library folder)
-*.meta
+
 
 # =========================================================
 # 6. Specific Local Files (If they still cause issues)
