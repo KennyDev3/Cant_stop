@@ -1,0 +1,65 @@
+# This file tells Git which files and folders to ignore when tracking a Unity project.
+
+# =========================================================
+# 1. Unity Generated Folders (Crucial to Ignore)
+# =========================================================
+
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+
+# =========================================================
+# 2. Crash/Diagnostics (Always Ignore)
+# =========================================================
+
+# Windows:
+/*.pdb
+*.mdb
+
+# OS X:
+/UnityCrashHandler_*.log
+
+# =========================================================
+# 3. Visual Studio / IDE Files (Local Settings)
+# =========================================================
+
+# Visual Studio / Rider:
+.vs/
+.idea/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+
+# VS Code (if used):
+.vscode/
+
+# =========================================================
+# 4. Built-in Editor Assets
+# =========================================================
+
+# Asset bundle files
+*.unitypackage
+
+# =========================================================
+# 5. Backup Files (Temporary Saves)
+# =========================================================
+
+# Backup/Autosave files created by various tools
+*~
+# Ignore all meta files that were created by the Unity Editor on the asset files that are being ignored (e.g., in the Library folder)
+*.meta
+
+# =========================================================
+# 6. Specific Local Files (If they still cause issues)
+# =========================================================
+
+# Specifically ignore common layout/settings files
+# Note: Layouts is already covered by UserSettings/ but good for redundancy
+UserSettings/Layouts/
