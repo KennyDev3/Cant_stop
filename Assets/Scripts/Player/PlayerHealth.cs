@@ -1,5 +1,7 @@
 using UnityEngine;
 using StarterAssets;
+using UnityEngine.Events;
+
 
 
 
@@ -10,14 +12,20 @@ public class PlayerHealth : MonoBehaviour
     private bool isDead = false;
 
 
-     private ThirdPersonController thirdPersonController;
+    private ThirdPersonController thirdPersonController;
     private CharacterController characterController;
+
+    [System.Serializable]
+    public class HealthChangeEvent : UnityEvent<float, float> { }
+    public HealthChangeEvent onHealthChanged;
 
     void Start()
     {
         currentHealth = maxHealth;
         thirdPersonController = GetComponent<ThirdPersonController>();
         characterController = GetComponent<CharacterController>();
+        onHealthChanged.Invoke(currentHealth, maxHealth); // Initial UI update
+
         
     }
 
@@ -27,6 +35,9 @@ public class PlayerHealth : MonoBehaviour
 
         currentHealth -= damageAmount;
         Debug.Log("Player took " + damageAmount + " damage. Current HP: " + currentHealth);
+        
+        onHealthChanged.Invoke(currentHealth, maxHealth);
+
 
         if (currentHealth <= 0)
         {

@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.Events;
 
 
 public class PlayerGarbageHandler : MonoBehaviour
@@ -10,6 +11,22 @@ public class PlayerGarbageHandler : MonoBehaviour
 
     [Header("Inventory")]
     private List<GarbageData> _carriedGarbage = new List<GarbageData>();
+    private int _money = 0;
+
+
+
+    [System.Serializable]
+    public class CapacityChangeEvent : UnityEvent<int, int> { }
+    public CapacityChangeEvent onCapacityChanged;
+
+    [System.Serializable]
+    public class MoneyChangeEvent : UnityEvent<int> { }
+    public MoneyChangeEvent onMoneyChanged;
+
+     private void Start()
+    {
+        onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+    }
 
     public bool TryPickupGarbage(GarbageItem garbageItem)
     {
@@ -20,6 +37,8 @@ public class PlayerGarbageHandler : MonoBehaviour
         {
             _currentCapacity += data.capacityCost;
             _carriedGarbage.Add(data);
+            onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+
 
             Debug.Log($"Picked up {data.itemName}. Current capacity: {_currentCapacity}/{maxCapacity}");
             // Here you can fire an event to update the UI
@@ -44,11 +63,15 @@ public class PlayerGarbageHandler : MonoBehaviour
         }
 
         Debug.Log($"Dropped off {_carriedGarbage.Count} items for ${totalValue}");
+        _money += totalValue;
+
         
         // Clear inventory
         _carriedGarbage.Clear();
         _currentCapacity = 0;
-        
+
+        onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+        onMoneyChanged.Invoke(_money);
         // Here you can fire an event to update the UI (capacity, cash)
         
         return totalValue;
