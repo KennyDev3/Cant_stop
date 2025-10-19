@@ -3,7 +3,7 @@ using UnityEngine;
 public class TruckHealth : MonoBehaviour
 {
 
-     public TruckData truckData;
+    public TruckData truckData;
     private float currentHealth;
     private bool isDead = false;
 

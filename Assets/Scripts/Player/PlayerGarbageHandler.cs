@@ -13,6 +13,11 @@ public class PlayerGarbageHandler : MonoBehaviour
     private List<GarbageData> _carriedGarbage = new List<GarbageData>();
     private int _money = 0;
 
+    public bool IsOverencumbered
+    {
+        get { return _currentCapacity > maxCapacity; }
+    }
+
 
 
     [System.Serializable]
@@ -28,29 +33,21 @@ public class PlayerGarbageHandler : MonoBehaviour
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
     }
 
-    public bool TryPickupGarbage(GarbageItem garbageItem)
+    public void PickupGarbage(GarbageItem garbageItem)
     {
         GarbageData data = garbageItem.GetGarbageData();
 
-        // Check if the player has enough capacity
-        if (_currentCapacity + data.capacityCost <= maxCapacity)
+        // Add item and update capacity
+        _currentCapacity += data.capacityCost;
+        _carriedGarbage.Add(data);
+        onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+
+        Debug.Log($"Picked up {data.itemName}. Current capacity: {_currentCapacity}/{maxCapacity}");
+
+        if (IsOverencumbered)
         {
-            _currentCapacity += data.capacityCost;
-            _carriedGarbage.Add(data);
-            onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
-
-
-            Debug.Log($"Picked up {data.itemName}. Current capacity: {_currentCapacity}/{maxCapacity}");
-            // Here you can fire an event to update the UI
-
-            return true;
-        }
-        else
-        {
-            Debug.Log($"Not enough capacity to pick up {data.itemName}.");
-            // Here you can fire an event to show a "Capacity Full" message
-
-            return false;
+            Debug.Log("Player is now overencumbered!");
+            // You could fire an event here to show a "Overencumbered" message on the UI
         }
     }
 
