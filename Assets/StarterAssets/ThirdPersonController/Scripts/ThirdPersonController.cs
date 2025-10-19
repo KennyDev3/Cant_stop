@@ -86,6 +86,8 @@ namespace StarterAssets
         private float _rotationVelocity;
         private float _verticalVelocity;
         private float _terminalVelocity = 53.0f;
+        private PlayerStamina _playerStamina; // Stamina Meter
+
 
         // timeout deltatime
         private float _jumpTimeoutDelta;
@@ -139,6 +141,7 @@ namespace StarterAssets
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
+            _playerStamina = GetComponent<PlayerStamina>();
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
 #else
@@ -213,8 +216,12 @@ namespace StarterAssets
 
         private void Move()
         {
+            // Determine if the player can sprint based on stamina
+            bool canSprint = _playerStamina != null ? _playerStamina.CanSprint() : true;
+
             // set target speed based on move speed, sprint speed and if sprint is pressed
-            float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
+            float targetSpeed = _input.sprint && canSprint ? SprintSpeed : MoveSpeed; // Added sprint functionality
+
 
             // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
 
@@ -262,6 +269,12 @@ namespace StarterAssets
 
                 // rotate to face input direction relative to camera position
                 transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
+            }
+
+            // Drain stamina if sprinting and moving
+            if (_input.sprint && _input.move != Vector2.zero && _playerStamina != null)
+            {
+                _playerStamina.DrainStamina();
             }
 
 
