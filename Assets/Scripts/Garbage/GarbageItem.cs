@@ -42,15 +42,14 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
     public void Interact(PlayerInteractor interactor)
     {
-        // Try to give this garbage to the player's garbage handler
         var garbageHandler = interactor.GetComponent<PlayerGarbageHandler>();
         if (garbageHandler != null)
         {
-            if (garbageHandler.TryPickupGarbage(this))
-            {
-                // If pickup was successful, destroy this object
-                Destroy(gameObject);
-            }
+            // Call the PickupGarbage method. Since it always succeeds, we don't need to check for a return value.
+            garbageHandler.PickupGarbage(this);
+            
+            // After picking it up, destroy the game object.
+            Destroy(gameObject);
         }
     }
 
@@ -76,6 +75,4 @@ public class GarbageItem : MonoBehaviour, IInteractable
     {
         return garbageData;
     }
-
-    
 }

@@ -87,6 +87,8 @@ namespace StarterAssets
         private float _verticalVelocity;
         private float _terminalVelocity = 53.0f;
         private PlayerStamina _playerStamina; // Stamina Meter
+        private PlayerGarbageHandler _playerGarbageHandler; // For overencumberence check
+        
 
 
         // timeout deltatime
@@ -144,6 +146,7 @@ namespace StarterAssets
             _playerStamina = GetComponent<PlayerStamina>();
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
+            _playerGarbageHandler = GetComponent<PlayerGarbageHandler>();
 #else
 			Debug.LogError( "Starter Assets package is missing dependencies. Please use Tools/Starter Assets/Reinstall Dependencies to fix it");
 #endif
@@ -215,15 +218,22 @@ namespace StarterAssets
         }
 
         private void Move()
-        {
-            // Determine if the player can sprint based on stamina
-            bool canSprint = _playerStamina != null ? _playerStamina.CanSprint() : true;
+        {   
+            float targetSpeed;
+            bool isOverencumbered = _playerGarbageHandler != null && _playerGarbageHandler.IsOverencumbered;
 
-            // set target speed based on move speed, sprint speed and if sprint is pressed
-            float targetSpeed = _input.sprint && canSprint ? SprintSpeed : MoveSpeed; // Added sprint functionality
-
-
-            // a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
+            // set target speed based on player state (overencumbered or not)
+            if (isOverencumbered)
+            {
+                // Player is overencumbered: speed is halved, no sprinting allowed.
+                targetSpeed = MoveSpeed / 2f;
+            }
+            else
+            {
+                // Player is not overencumbered: normal speed and sprint logic applies.
+                bool canSprint = _playerStamina != null ? _playerStamina.CanSprint() : true;
+                targetSpeed = _input.sprint && canSprint ? SprintSpeed : MoveSpeed;
+            }
 
             // note: Vector2's == operator uses approximation so is not floating point error prone, and is cheaper than magnitude
             // if there is no input, set the target speed to 0
@@ -272,7 +282,8 @@ namespace StarterAssets
             }
 
             // Drain stamina if sprinting and moving
-            if (_input.sprint && _input.move != Vector2.zero && _playerStamina != null)
+            if (!isOverencumbered && _input.sprint && _input.move != Vector2.zero && _playerStamina != null)
+
             {
                 _playerStamina.DrainStamina();
             }
