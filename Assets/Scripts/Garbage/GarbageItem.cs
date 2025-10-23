@@ -6,34 +6,24 @@ public class GarbageItem : MonoBehaviour, IInteractable
     [SerializeField] private GarbageData garbageData;
 
 
-    private Renderer _renderer;
-    private Color _originalColor;
+    private Outline _outline;
+
 
 
     void Awake()
     {
-        _renderer = GetComponentInChildren<Renderer>();
-        if (_renderer != null)
-        {
-            _originalColor = _renderer.material.color;
-        }
+        _outline = GetComponent<Outline>();
+        _outline.OutlineColor = Color.white;
+        _outline.enabled = true; // Keep enabled for it to function
     }
 
 
     public void Initialize(GarbageData data)
     {
         garbageData = data;
-        InitializeRenderer();
+       
     }
-
-    private void InitializeRenderer()
-    {
-        _renderer = GetComponentInChildren<Renderer>();
-        if (_renderer != null)
-        {
-            _originalColor = _renderer.material.color;
-        }
-    }
+   
 
     public string GetInteractionPrompt()
     {
@@ -55,21 +45,23 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
     public void Highlight()
     {
-        if (_renderer != null)
+        if (_outline != null)
         {
-            // A simple highlight: make it bright yellow
-            _renderer.material.color = Color.yellow;
+            // Set to yellow and make visible when in range
+            _outline.OutlineColor = Color.yellow;
         }
     }
 
     public void Unhighlight()
     {
-        if (_renderer != null)
+        if (_outline != null)
         {
-            _renderer.material.color = _originalColor;
+            // Reset to white and hide when out of range
+            _outline.OutlineColor = Color.white;
+
         }
     }
-    
+
     // Public getter for the data
     public GarbageData GetGarbageData()
     {

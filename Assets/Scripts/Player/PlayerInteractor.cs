@@ -9,16 +9,48 @@ public class PlayerInteractor : MonoBehaviour
     private StarterAssetsInputs _input;
     private Camera _mainCamera;
     private IInteractable _currentInteractable;
+    private ShopManager _shopManager;
 
     void Awake()
     {
         _input = GetComponent<StarterAssetsInputs>();
         _mainCamera = Camera.main;
+
+        _shopManager = FindFirstObjectByType<ShopManager>();
+        if (_shopManager == null)
+        {
+            Debug.LogError("PlayerInteractor cannot find a ShopManager in the scene.");
+        }
     }
 
     void Update()
     {
+        // 1. ALWAYS check for interactables to keep _currentInteractable up to date.
         CheckForInteractable();
+
+        // 2. CHECK IF SHOP IS OPEN (The Piggyback Check)
+        if (_shopManager != null && _shopManager.IsShopOpen)
+        {
+            // Auto-Close Logic: If the player has moved out of range, _currentInteractable will be null.
+            if (_currentInteractable == null)
+            {
+                Debug.LogWarning("[PI Update] Shop Open. No interactable in range. Closing shop.");
+                _shopManager.CloseShop();
+            }
+
+            // Input Consumption Logic: Always consume the input while the shop is open 
+            // to prevent the 'E' button from immediately re-triggering the interaction 
+            // after the shop closes (either by distance or pressing 'E' again).
+            if (_input.interact)
+            {
+                _input.interact = false;
+            }
+
+            // We return here to skip the normal interaction logic below.
+            return;
+        }
+
+        // 3. NORMAL INTERACTION LOGIC (Only runs if the shop is closed)
 
         if (_input.interact)
         {
@@ -26,42 +58,31 @@ public class PlayerInteractor : MonoBehaviour
             {
                 _currentInteractable.Interact(this);
             }
-            // Set interact to false to act as a single-press button
+            // Consume Input for single press
             _input.interact = false;
         }
     }
 
+    // The rest of the methods remain unchanged.
     private void CheckForInteractable()
-{
-    Collider[] colliders = Physics.OverlapSphere(transform.position, interactionDistance, interactableLayer);
-
-    // DEBUG: Is the sphere finding anything at all?
-    if (colliders.Length > 0)
     {
-        // Debug.Log($"Found {colliders.Length} colliders in the interaction zone.");
-    }
+        Collider[] colliders = Physics.OverlapSphere(transform.position, interactionDistance, interactableLayer);
 
-    IInteractable closestInteractable = null;
-    float minDistance = float.MaxValue;
+        IInteractable closestInteractable = null;
+        float minDistance = float.MaxValue;
 
-    foreach (var collider in colliders)
-    {
-        // DEBUG: Print the name and layer of every object found
-        // Debug.Log($"Checking object: {collider.name} on layer {LayerMask.LayerToName(collider.gameObject.layer)}");
-        
-        if (collider.TryGetComponent(out IInteractable interactable))
+        foreach (var collider in colliders)
         {
-            // DEBUG: Did we find a script that implements IInteractable?
-            // Debug.Log($"{collider.name} has an IInteractable script!");
-
-            float distance = Vector3.Distance(transform.position, collider.transform.position);
-            if (distance < minDistance)
+            if (collider.TryGetComponent(out IInteractable interactable))
             {
-                minDistance = distance;
-                closestInteractable = interactable;
+                float distance = Vector3.Distance(transform.position, collider.transform.position);
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    closestInteractable = interactable;
+                }
             }
         }
-    }
 
         if (closestInteractable != _currentInteractable)
         {
@@ -71,22 +92,14 @@ public class PlayerInteractor : MonoBehaviour
 
             if (_currentInteractable != null)
             {
-                // DEBUG: We are about to highlight something!
-                // Debug.Log($"Highlighting new target: {(_currentInteractable as MonoBehaviour).name}");
                 _currentInteractable.Highlight();
             }
         }
     }
 
     private void OnDrawGizmos()
-{
-    Gizmos.color = Color.cyan;
-    Gizmos.DrawWireSphere(transform.position, interactionDistance);
-}
-
-
-
-
-
-
+    {
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(transform.position, interactionDistance);
+    }
 }

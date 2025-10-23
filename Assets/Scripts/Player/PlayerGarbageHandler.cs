@@ -5,18 +5,20 @@ using UnityEngine.Events;
 
 public class PlayerGarbageHandler : MonoBehaviour
 {
-     [Header("Capacity")]
+    [Header("Capacity")]
     [SerializeField] private int maxCapacity = 10;
     private int _currentCapacity = 0;
 
     [Header("Inventory")]
     private List<GarbageData> _carriedGarbage = new List<GarbageData>();
-    private int _money = 0;
+    [SerializeField] float _money = 200;
 
     public bool IsOverencumbered
     {
         get { return _currentCapacity > maxCapacity; }
     }
+
+    public int GetBaseMaxCapacity() => maxCapacity;
 
 
 
@@ -25,12 +27,13 @@ public class PlayerGarbageHandler : MonoBehaviour
     public CapacityChangeEvent onCapacityChanged;
 
     [System.Serializable]
-    public class MoneyChangeEvent : UnityEvent<int> { }
+    public class MoneyChangeEvent : UnityEvent<float> { }
     public MoneyChangeEvent onMoneyChanged;
 
      private void Start()
     {
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+        onMoneyChanged.Invoke(_money);
     }
 
     public void PickupGarbage(GarbageItem garbageItem)
@@ -73,10 +76,49 @@ public class PlayerGarbageHandler : MonoBehaviour
         
         return totalValue;
     }
+
+
+    public float GetMoney()
+    {
+        return _money;
+    }
+
     
 
+    public bool CanAfford(float amount)
+    {
+        return _money >= amount;
+    }
+
+    public bool Spend(float amount)
+    {
+        if (amount <= 0)
+        {
+            Debug.LogError("Attempted to spend a non-positive amount.");
+            return false;
+        }
+
+        if (CanAfford(amount))
+        {
+            _money -= amount;
+            onMoneyChanged.Invoke(_money);
+            Debug.Log($"Spent ${amount:F2}. New balance: ${_money:F2}");
+            return true;
+        }
+        else
+        {
+            // Now, the failure logic is executed whenever the Spend method is called
+            float needed = amount - _money;
+            Debug.LogWarning($"Not enough funds! You need ${needed:F2} more to buy this item (Cost: ${amount:F2}, Current: ${_money:F2}).");
+            return false;
+        }
+    }
 
 
 
-    
+
+
+
+
+
 }

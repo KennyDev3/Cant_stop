@@ -16,8 +16,7 @@ public class UIManager : MonoBehaviour
 
      private void Start()
     {
-        // Initialize money text
-        UpdateMoney(0);
+       
     }
 
     public void UpdateHealth(float currentHealth, float maxHealth)
@@ -46,7 +45,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    public void UpdateMoney(int amount)
+    public void UpdateMoney(float amount)
     {
         if (moneyText != null)
         {
