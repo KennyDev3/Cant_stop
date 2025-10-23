@@ -3,16 +3,14 @@ using UnityEngine;
 public class GarbageDropOff : MonoBehaviour, IInteractable
 {
     // Simple highlight effect
-    private Renderer _renderer;
-    private Color _originalColor;
+
+    private Outline _outline;
 
     void Awake()
     {
-        _renderer = GetComponentInChildren<Renderer>();
-        if (_renderer != null)
-        {
-            _originalColor = _renderer.material.color;
-        }
+        _outline = GetComponent<Outline>();
+        _outline.OutlineColor = Color.white;
+        _outline.enabled = true; // Keep enabled for it to function
     }
     
     public string GetInteractionPrompt()
@@ -32,11 +30,20 @@ public class GarbageDropOff : MonoBehaviour, IInteractable
 
     public void Highlight()
     {
-        if (_renderer != null) _renderer.material.color = Color.green;
+        if (_outline != null)
+        {
+            // Set to yellow and make visible when in range
+            _outline.OutlineColor = Color.yellow;
+        }
     }
 
     public void Unhighlight()
     {
-        if (_renderer != null) _renderer.material.color = _originalColor;
+        if (_outline != null)
+        {
+            // Reset to white and hide when out of range
+            _outline.OutlineColor = Color.white;
+            
+        }
     }
 }

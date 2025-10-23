@@ -5,8 +5,10 @@ using UnityEngine.Events;
 public class PlayerStamina : MonoBehaviour
 {
     [Header("Stamina Settings")]
-    [Tooltip("The maximum amount of stamina the player can have.")]
-    public float maxStamina = 100f;
+    [Tooltip("The base maximum amount of stamina.")]
+    [SerializeField] private float baseMaxStamina = 100f; // Track the base value
+    [Tooltip("The total maximum amount of stamina (Base + Upgrades).")]
+    public float maxStamina;
     [Tooltip("The current amount of stamina.")]
     [SerializeField] private float currentStamina;
     [Tooltip("The rate at which stamina drains per second when sprinting.")]
@@ -16,7 +18,7 @@ public class PlayerStamina : MonoBehaviour
     [Tooltip("The delay in seconds before stamina starts regenerating after sprinting.")]
     public float staminaRegenDelay = 1f;
 
-     private float staminaRegenTimer;
+    private float staminaRegenTimer;
     private bool isDraining;
 
     [System.Serializable]
@@ -25,6 +27,7 @@ public class PlayerStamina : MonoBehaviour
 
     void Start()
     {
+        maxStamina = baseMaxStamina;
         currentStamina = maxStamina;
     }
 
@@ -66,10 +69,21 @@ public class PlayerStamina : MonoBehaviour
         }
     }
 
+    public void UpgradeMaxStamina(float increaseAmount)
+    {
+        // Increase the total max stamina
+        maxStamina += increaseAmount;
+
+        // Optionally, heal the player to the new max or top them off
+        currentStamina = maxStamina;
+
+        onStaminaChanged.Invoke(currentStamina, maxStamina);
+        Debug.Log($"Max Stamina Upgraded to: {maxStamina}");
+    }
 
 
 
 
 
-    
+
 }
