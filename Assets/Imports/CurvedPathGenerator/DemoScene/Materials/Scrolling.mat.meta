@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 0fecc405e6dbd6945b1882536a022af7
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 243012
+  packageName: Curved Path Generator
+  packageVersion: 2.0.2
+  assetPath: Assets/CurvedPathGenerator/DemoScene/Materials/Scrolling.mat
+  uploadId: 624974

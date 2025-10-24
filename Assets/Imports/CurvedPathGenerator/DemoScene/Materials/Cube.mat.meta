@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 7c382119eb6598d4195c8cd4e922050c
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 243012
+  packageName: Curved Path Generator
+  packageVersion: 2.0.2
+  assetPath: Assets/CurvedPathGenerator/DemoScene/Materials/Cube.mat
+  uploadId: 624974

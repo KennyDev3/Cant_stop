@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b7383c5bd48404746b0b996142435ea4
+TextScriptImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 243012
+  packageName: Curved Path Generator
+  packageVersion: 2.0.2
+  assetPath: Assets/CurvedPathGenerator/ReadMe.md
+  uploadId: 624974

@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 223bf0b1cd4dccb4a8f4ccaf75a08fff
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {fileID: 2800000, guid: 96e5bd3514ff1804c964a29dccdebaac, type: 3}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 243012
+  packageName: Curved Path Generator
+  packageVersion: 2.0.2
+  assetPath: Assets/Editor/CurvedPathGenerator/PathFollwerGUI.cs
+  uploadId: 624974
