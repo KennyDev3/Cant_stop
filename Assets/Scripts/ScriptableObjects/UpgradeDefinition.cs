@@ -4,9 +4,13 @@ using UnityEngine;
 public enum UpgradeType
 {
     None,
-    MaxStamina,
-    PlayerCapacity,
-    TruckSpeed
+    MaxStamina, // Done
+    PlayerSpeed, // Done
+    PlayerCapacity, // Done
+    TurretDamage,
+    TurretFireRate
+
+
 }
 
 [CreateAssetMenu(fileName = "UpgradeDefinition", menuName = "Upgrade/Upgrade Definition", order = 1)]

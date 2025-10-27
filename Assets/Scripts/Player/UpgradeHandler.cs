@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
-using TMPro; // Assuming TextMeshPro for UI components
+using TMPro;
+using StarterAssets; // Assuming TextMeshPro for UI components
 
 public class UpgradeHandler : MonoBehaviour
 {
@@ -10,6 +11,8 @@ public class UpgradeHandler : MonoBehaviour
     [Header("Component References (Set in Inspector)")]
     [SerializeField] private PlayerStamina playerStamina;
     [SerializeField] public PlayerGarbageHandler playerGarbageHandler;
+    [SerializeField] public ThirdPersonController thirdPersonController;
+    [SerializeField] public TruckTurret truckTurret;
 
     void Start()
     {
@@ -34,6 +37,16 @@ public class UpgradeHandler : MonoBehaviour
         if (playerGarbageHandler == null)
         {
             playerGarbageHandler = FindFirstObjectByType<PlayerGarbageHandler>();
+        }
+
+        if (thirdPersonController == null)
+        {
+            thirdPersonController = FindFirstObjectByType<ThirdPersonController>();
+        }
+
+        if(truckTurret == null)
+        {
+            truckTurret = GetComponent<TruckTurret>();
         }
     }
 
@@ -104,10 +117,37 @@ public class UpgradeHandler : MonoBehaviour
                 }
                 break;
             case UpgradeType.PlayerCapacity:
-                // Future: Get player capacity component and call UpgradeCapacity(definition.valuePerLevel);
+                if(playerGarbageHandler != null)
+                {
+                    playerGarbageHandler.UpgradeMaxCapacity((int)definition.valuePerLevel);
+                }
                 break;
+            case UpgradeType.PlayerSpeed:
+                if(thirdPersonController != null)
+                {
+                    thirdPersonController.UpgradePlayerSpeed(definition.valuePerLevel);
+                }
+                break;
+            case UpgradeType.TurretDamage:
+                if (truckTurret != null)
+                {
+                    truckTurret.IncreaseTurretDamage(definition.valuePerLevel);
+                }
+                break;
+            case UpgradeType.TurretFireRate:
+                if (truckTurret != null)
+                {
+                    truckTurret.IncreaseTurretFireRate(definition.valuePerLevel);
+                }
+                break;
+
+
+
                 // Add more cases for future upgrade types
+                // Add more cases for more upgrades, be mindful of TYPES which might need to be added in the UpgradeDefinition SO
         }
+
+        
     }
 
 }

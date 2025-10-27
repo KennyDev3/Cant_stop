@@ -15,6 +15,17 @@ public class TruckTurret : MonoBehaviour
     private Transform currentTarget;
     private float fireTimer;
     private float shootingAngle = 45f;
+    public float _turretDamage;
+    public float _turretFireRate;
+
+
+    private void Awake()
+    {
+        _turretDamage = turretData.damage;
+        _turretFireRate = turretData.fireRate;
+        Debug.Log(_turretDamage);
+        Debug.Log(_turretFireRate);
+    }
 
     void Start()
     {
@@ -35,6 +46,8 @@ public class TruckTurret : MonoBehaviour
         {
             Debug.LogWarning("Turret Pivot not assigned. Turret will attempt to rotate based on its own transform, but alignment may be imperfect.");
         }
+
+       
     }
 
     void Update()
@@ -161,8 +174,9 @@ public class TruckTurret : MonoBehaviour
 
     private void TryShoot()
     {
-        if (fireTimer >= turretData.fireRate)
+        if (fireTimer >= _turretFireRate)
         {
+
             // Recalculate direction right before firing for precision
             Vector3 targetDir = (currentTarget.position - muzzlePoint.position).normalized;
             float angle = Vector3.Angle(muzzlePoint.forward, targetDir);
@@ -199,7 +213,7 @@ public class TruckTurret : MonoBehaviour
             if (enemyHealth != null)
             {
                 // Damage the enemy immediately
-                enemyHealth.TakeDamage(turretData.damage);
+                enemyHealth.TakeDamage(_turretDamage);
                 Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{turretData.damage} damage</color>.");
             }
             else
@@ -215,6 +229,18 @@ public class TruckTurret : MonoBehaviour
              Debug.DrawRay(muzzlePoint.position, direction * turretData.targetRange, Color.yellow, 0.5f); 
              Debug.Log($"<color=red>MISS:</color> Hitscan missed the target (possible line-of-sight block).");
         }
+    }
+
+    public void IncreaseTurretDamage(float increaseAmount)
+    {
+        _turretDamage += increaseAmount;
+      
+    }
+
+    public void IncreaseTurretFireRate(float increaseAmount)
+    {
+        _turretFireRate -= increaseAmount;
+        Debug.Log(_turretFireRate);
     }
 
     // GIZMOS FOR VISUAL DEBUGGING
@@ -244,4 +270,6 @@ public class TruckTurret : MonoBehaviour
             Gizmos.DrawRay(muzzlePoint.position, muzzlePoint.forward * 5f);
         }
     }
+
+    
 }
