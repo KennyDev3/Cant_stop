@@ -7,18 +7,17 @@ public class TruckMovement : MonoBehaviour
     public float normalMoveSpeed = 5f;
     public float safeZoneMoveSpeed = 2f;
     [Tooltip("How quickly the car rotates to face the waypoint (used as Slerp speed).")]
-    public float rotationSpeed = 5f; // Used as the turnSpeed multiplier
-    public float waypointReachedDistance = 0.5f; // Used as the arrival threshold
-    // Removed: public float lookAheadDistance (as requested)
+    public float rotationSpeed = 10f; // Matches the original script's rotation multiplier
+    public float waypointReachedDistance = 0.1f; // Matches the original script's threshold
 
     // --- Private Variables ---
-    private Rigidbody rb; // NEW: Needed for physics-correct movement
     private float currentMoveSpeed;
     private int currentWaypointIndex = 0;
 
 
     private void OnEnable()
     {
+        // Assuming SafeZone and GameManager exist in your project
         SafeZone.OnTruckEnteredSafeZone += SlowDown;
         SafeZone.OnTruckExitedSafeZone += SpeedUp;
     }
@@ -33,20 +32,12 @@ public class TruckMovement : MonoBehaviour
 
     private void Start()
     {
-        // 1. Get the Rigidbody component (Crucial for physics)
-        rb = GetComponent<Rigidbody>();
-        if (rb == null)
-        {
-            Debug.LogError("Rigidbody component not found on the truck! Cannot move.", this);
-            this.enabled = false;
-            return;
-        }
-
+        // No Rigidbody check needed, but we keep initialization logic
         currentMoveSpeed = normalMoveSpeed;
         InitializeTruckPosition();
     }
 
-    // --- Existing Initialization Logic (Adapted for Rigidbody) ---
+    // --- Existing Initialization Logic (Using Transform) ---
     private void InitializeTruckPosition()
     {
         if (route == null || route.startPoint == null || route.waypoints.Count == 0)
@@ -61,7 +52,7 @@ public class TruckMovement : MonoBehaviour
         if (startIndex == -1)
         {
             Debug.LogError("The assigned 'startPoint' is not in the 'waypoints' list. Starting at index 0.", this);
-            startIndex = 0; // Fallback to start at the first point
+            startIndex = 0;
         }
 
         // Set the truck's position to the start point.
@@ -70,20 +61,21 @@ public class TruckMovement : MonoBehaviour
         // Set the truck's FIRST target to be the *next* waypoint after the start point.
         currentWaypointIndex = (startIndex + 1) % route.waypoints.Count;
 
-        // Instantly rotate the truck to look at its actual first target using the Rigidbody.
+        // Instantly rotate the truck to look at its actual first target.
         Transform firstTarget = route.waypoints[currentWaypointIndex];
         Vector3 initialDirection = (firstTarget.position - transform.position).normalized;
 
         if (initialDirection.sqrMagnitude > 0.001f)
         {
-            // Use rb.rotation for instant, physics-aware rotation
-            rb.rotation = Quaternion.LookRotation(initialDirection);
+            // Use transform.rotation for instant rotation
+            transform.rotation = Quaternion.LookRotation(initialDirection);
         }
     }
 
-    // --- Physics-Based Movement Loop (New Logic, uses FixedUpdate) ---
+    // --- Movement Loop (Switched back to Update) ---
 
-    void FixedUpdate()
+    // Now uses Update() for frame-rate-dependent, direct Transform manipulation
+    void Update()
     {
         HandleMovement();
     }
@@ -92,39 +84,49 @@ public class TruckMovement : MonoBehaviour
     {
         if (route == null || route.waypoints.Count == 0) return;
 
+        // --- 1. Waypoint Reached Check ---
         Transform targetWaypoint = route.waypoints[currentWaypointIndex];
         Vector3 targetPosition = targetWaypoint.position;
+
+        // Calculate the distance using the Transform's current position
+        float distanceToWaypoint = Vector3.Distance(transform.position, targetPosition);
+
+        if (distanceToWaypoint < waypointReachedDistance)
+        {
+            // Move to the next waypoint
+            currentWaypointIndex++;
+
+            // Loop back to the first waypoint
+            if (currentWaypointIndex >= route.waypoints.Count)
+            {
+                currentWaypointIndex = 0;
+            }
+
+            // Re-target the position to the new waypoint (needed for calculation below)
+            targetPosition = route.waypoints[currentWaypointIndex].position;
+        }
+
+        // --- 2. Calculate Direction and Movement (Direct Transform Move) ---
         Vector3 directionToTarget = (targetPosition - transform.position);
 
-        if (directionToTarget.magnitude < waypointReachedDistance)
+        // Use normalized direction for movement
+        Vector3 direction = directionToTarget.normalized;
+
+        // Move the truck towards the target at a constant speed
+        // Uses Time.deltaTime because it's in Update()
+        transform.position += direction * currentMoveSpeed * Time.deltaTime;
+
+        // --- 3. Rotate the truck to face the direction of movement ---
+        if (direction != Vector3.zero)
         {
-            currentWaypointIndex = (currentWaypointIndex + 1) % route.waypoints.Count;
-            return; // Skip movement this frame to process the new target next frame
-        }
+            Quaternion targetRotation = Quaternion.LookRotation(direction);
 
-        LookAtTarget(directionToTarget.normalized, false);
-
-        Vector3 forwardMovement = transform.forward * currentMoveSpeed;
-
-        rb.linearVelocity = new Vector3(forwardMovement.x, rb.linearVelocity.y, forwardMovement.z);
-    }
-
-    void LookAtTarget(Vector3 direction, bool instant)
-    {
-        Quaternion lookRotation = Quaternion.LookRotation(direction);
-
-        if (instant)
-        {
-            rb.rotation = lookRotation;
-        }
-        else
-        {
-            Quaternion newRotation = Quaternion.Slerp(
-                rb.rotation,
-                lookRotation,
-                Time.fixedDeltaTime * rotationSpeed
+            // Smoothly rotate using transform.rotation
+            transform.rotation = Quaternion.Slerp(
+                transform.rotation,
+                targetRotation,
+                Time.deltaTime * rotationSpeed
             );
-            rb.MoveRotation(newRotation); // Use MoveRotation for physics integrity
         }
     }
 
