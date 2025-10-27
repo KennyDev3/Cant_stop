@@ -114,6 +114,12 @@ public class PlayerGarbageHandler : MonoBehaviour
         }
     }
 
+    public void UpgradeMaxCapacity(int increaseAmount)
+    {
+        maxCapacity += increaseAmount;
+        onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+    }
+
 
 
 

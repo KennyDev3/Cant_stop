@@ -393,6 +393,13 @@ namespace StarterAssets
                 GroundedRadius);
         }
 
+        public void UpgradePlayerSpeed(float increaseAmount)
+        {
+            MoveSpeed += increaseAmount;
+            SprintSpeed += increaseAmount;
+            Debug.Log(MoveSpeed);
+        }
+
         private void OnFootstep(AnimationEvent animationEvent)
         {
             if (animationEvent.animatorClipInfo.weight > 0.5f)
