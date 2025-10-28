@@ -141,6 +141,13 @@ public class UpgradeHandler : MonoBehaviour
                 }
                 break;
 
+            case UpgradeType.PlayerStrength:
+                if (playerGarbageHandler != null)
+                {
+                    playerGarbageHandler.UpgradePlayerStrength((int)definition.valuePerLevel);
+                }
+                break;
+
 
 
                 // Add more cases for future upgrade types
