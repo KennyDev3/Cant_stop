@@ -13,12 +13,18 @@ public class PlayerGarbageHandler : MonoBehaviour
     private List<GarbageData> _carriedGarbage = new List<GarbageData>();
     [SerializeField] float _money = 200;
 
+    [Header("Strength")]
+    [Tooltip("Player's current strength level (1-3). Determines which garbage tiers they can pick up.")]
+    [SerializeField] public int playerStrength = 1; // Default to 1
+
+
     public bool IsOverencumbered
     {
         get { return _currentCapacity > maxCapacity; }
     }
 
     public int GetBaseMaxCapacity() => maxCapacity;
+    public int GetPlayerStrength() => playerStrength;
 
 
 
@@ -36,9 +42,18 @@ public class PlayerGarbageHandler : MonoBehaviour
         onMoneyChanged.Invoke(_money);
     }
 
-    public void PickupGarbage(GarbageItem garbageItem)
+    public bool PickupGarbage(GarbageItem garbageItem)
     {
         GarbageData data = garbageItem.GetGarbageData();
+
+        if (playerStrength < data.garbageTier)
+        {
+            // Player's strength is NOT sufficient to pick up this tier of garbage
+            Debug.LogWarning($"Not strong enough to pick up {data.itemName} (Tier {data.garbageTier}). " +
+                             $"Requires Strength {data.garbageTier}, Player has Strength {playerStrength}.");
+
+            return false;
+        }
 
         // Add item and update capacity
         _currentCapacity += data.capacityCost;
@@ -52,6 +67,8 @@ public class PlayerGarbageHandler : MonoBehaviour
             Debug.Log("Player is now overencumbered!");
             // You could fire an event here to show a "Overencumbered" message on the UI
         }
+
+        return true;
     }
 
     public int DropOffGarbage()
@@ -118,6 +135,12 @@ public class PlayerGarbageHandler : MonoBehaviour
     {
         maxCapacity += increaseAmount;
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+    }
+
+    public void UpgradePlayerStrength(int increaseAmount = 1)
+    {
+        playerStrength += increaseAmount;
+        // Optionally clamp or add an event here
     }
 
 

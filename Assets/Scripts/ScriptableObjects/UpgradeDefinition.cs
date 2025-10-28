@@ -6,6 +6,7 @@ public enum UpgradeType
     None,
     MaxStamina, // Done
     PlayerSpeed, // Done
+    PlayerStrength,
     PlayerCapacity, // Done
     TurretDamage,
     TurretFireRate
