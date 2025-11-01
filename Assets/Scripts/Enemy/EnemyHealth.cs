@@ -9,7 +9,9 @@ public class EnemyHealth : MonoBehaviour
     private EnemyController enemyController;
     private NavMeshAgent navMeshAgent;
     private Collider enemyCollider;
-    private Rigidbody rb; 
+    private Rigidbody rb;
+
+    private float particleEffectDestroyTime = 3f;
 
 
     void Start()
@@ -22,34 +24,47 @@ public class EnemyHealth : MonoBehaviour
 
     }
 
-    public void TakeDamage(float damage)
+    public void TakeDamage(float damage, Vector3 hitPoint)
     {
         if (isDead) return;
 
         currentHealth -= damage;
+        PlayHitEffect(hitPoint);
+
         if (currentHealth <= 0)
         {
             Die();
         }
     }
 
+    private void PlayHitEffect(Vector3 position)
+    {
+        
+        if (enemyData.bloodVFX != null)
+        {
+            GameObject effect = Instantiate(enemyData.bloodVFX, position, Quaternion.identity);
+
+            Destroy(effect, particleEffectDestroyTime);
+          
+        }
+    }
+
+
+
     private void Die()
 {
     isDead = true;
     Debug.Log(gameObject.name + " has died.");
 
-    // Disable the "brain" and movement
     if (enemyController != null) enemyController.enabled = false;
     if (navMeshAgent != null) navMeshAgent.enabled = false;
 
     if (rb != null)
     {
-        // Make the rigidbody fully dynamic
         rb.isKinematic = false;
         rb.constraints = RigidbodyConstraints.None;
         rb.useGravity = true;
         
-        // Apply a random torque to make it topple over
         Vector3 randomTorque = new Vector3(
             Random.Range(-1f, 1f),
             Random.Range(-0.5f, 0.5f),
@@ -58,7 +73,6 @@ public class EnemyHealth : MonoBehaviour
         
         rb.AddTorque(randomTorque, ForceMode.VelocityChange);
         
-        // Optional: Apply a small random force to push it slightly
         Vector3 randomForce = new Vector3(
             Random.Range(-0.5f, 0.5f),
             0.2f, // Slight upward component
@@ -70,20 +84,13 @@ public class EnemyHealth : MonoBehaviour
 
     if (enemyData.garbageDataOnDeath != null)
     {
-        // Add the GarbageItem component to this GameObject.
         GarbageItem garbageItem = gameObject.AddComponent<GarbageItem>();
-
-        // Initialize it with the data from our EnemyData asset.
         garbageItem.Initialize(enemyData.garbageDataOnDeath);
-
-        // Change the GameObject's layer to "Interactable".
         gameObject.layer = LayerMask.NameToLayer("Interactable");
-
         Debug.Log(gameObject.name + " has become interactable garbage.");
     }
     else
     {
-        // If no garbage data is assigned, just make it non-collidable.
         if(enemyCollider != null) enemyCollider.enabled = false;
     }
 }

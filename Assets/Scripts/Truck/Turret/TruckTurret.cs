@@ -213,7 +213,7 @@ public class TruckTurret : MonoBehaviour
             if (enemyHealth != null)
             {
                 // Damage the enemy immediately
-                enemyHealth.TakeDamage(_turretDamage);
+                enemyHealth.TakeDamage(_turretDamage, hit.point);
                 Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{turretData.damage} damage</color>.");
             }
             else
@@ -243,29 +243,23 @@ public class TruckTurret : MonoBehaviour
         Debug.Log(_turretFireRate);
     }
 
-    // GIZMOS FOR VISUAL DEBUGGING
     private void OnDrawGizmosSelected()
     {
         if (turretData == null) return;
 
-        // 1. Draw Turret Range (always visible when selected)
         Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.3f); // Light Blue, transparent
         Gizmos.DrawWireSphere(transform.position, turretData.targetRange);
 
-        // 2. Draw Aim Line (only if a target is locked)
         if (currentTarget != null && muzzlePoint != null)
         {
-            // Draw a solid yellow line from the muzzle to the target
             Gizmos.color = Color.yellow;
             Gizmos.DrawLine(muzzlePoint.position, currentTarget.position);
 
-            // Draw a green sphere at the target's position
             Gizmos.color = Color.green;
             Gizmos.DrawWireSphere(currentTarget.position, 0.5f);
         }
         else if (muzzlePoint != null)
         {
-            // Draw the current forward direction when no target is locked
             Gizmos.color = Color.gray;
             Gizmos.DrawRay(muzzlePoint.position, muzzlePoint.forward * 5f);
         }
