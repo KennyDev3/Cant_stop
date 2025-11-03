@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.Events;
-
+using StarterAssets;
 
 public class PlayerGarbageHandler : MonoBehaviour
 {
@@ -11,12 +11,14 @@ public class PlayerGarbageHandler : MonoBehaviour
 
     [Header("Inventory")]
     private List<GarbageData> _carriedGarbage = new List<GarbageData>();
-    [SerializeField] float _money = 200;
+    [SerializeField] private float _money = 200f;
 
     [Header("Strength")]
     [Tooltip("Player's current strength level (1-3). Determines which garbage tiers they can pick up.")]
-    [SerializeField] public int playerStrength = 1; // Default to 1
+    [SerializeField] public int playerStrength = 1;
 
+    private GarbageItem _currentItemToCollect;
+    private ThirdPersonController _playerController;
 
     public bool IsOverencumbered
     {
@@ -25,8 +27,8 @@ public class PlayerGarbageHandler : MonoBehaviour
 
     public int GetBaseMaxCapacity() => maxCapacity;
     public int GetPlayerStrength() => playerStrength;
-
-
+    public float GetMoney() => _money;
+    public int GetCurrentCapacity() => _currentCapacity;
 
     [System.Serializable]
     public class CapacityChangeEvent : UnityEvent<int, int> { }
@@ -36,39 +38,104 @@ public class PlayerGarbageHandler : MonoBehaviour
     public class MoneyChangeEvent : UnityEvent<float> { }
     public MoneyChangeEvent onMoneyChanged;
 
-     private void Start()
+    void Awake()
+    {
+        _playerController = GetComponent<ThirdPersonController>();
+
+        if (_playerController == null)
+        {
+            Debug.LogError("Player is missing ThirdPersonController!");
+        }
+        else
+        {
+            // Subscribe to the animation event
+            _playerController.OnPickupAnimationComplete += FinalizePickup;
+        }
+    }
+
+    private void Start()
     {
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
         onMoneyChanged.Invoke(_money);
     }
 
-    public bool PickupGarbage(GarbageItem garbageItem)
+    void OnDestroy()
     {
-        GarbageData data = garbageItem.GetGarbageData();
-
-        if (playerStrength < data.garbageTier)
+        // Unsubscribe from events to prevent memory leaks
+        if (_playerController != null)
         {
-            // Player's strength is NOT sufficient to pick up this tier of garbage
-            Debug.LogWarning($"Not strong enough to pick up {data.itemName} (Tier {data.garbageTier}). " +
-                             $"Requires Strength {data.garbageTier}, Player has Strength {playerStrength}.");
-
-            return false;
+            _playerController.OnPickupAnimationComplete -= FinalizePickup;
         }
+    }
 
-        // Add item and update capacity
+    // ===================================
+    // GARBAGE HANDLING LOGIC
+    // ===================================
+
+    /// <summary>
+    /// This is the main collection logic. It should ONLY be called by FinalizePickup.
+    /// </summary>
+    private bool AddGarbageToInventory(GarbageData data)
+    {
         _currentCapacity += data.capacityCost;
         _carriedGarbage.Add(data);
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
 
-        Debug.Log($"Picked up {data.itemName}. Current capacity: {_currentCapacity}/{maxCapacity}");
+        Debug.Log($"Collected {data.itemName}. Current capacity: {_currentCapacity}/{maxCapacity}");
 
         if (IsOverencumbered)
         {
-            Debug.Log("Player is now overencumbered!");
-            // You could fire an event here to show a "Overencumbered" message on the UI
+            Debug.Log("Player is now overencumbered! Movement penalties should apply.");
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Called by GarbageItem.Interact() to start the entire animation and collection process.
+    /// </summary>
+    public bool StartPickupProcess(GarbageItem garbageItem)
+    {
+        GarbageData data = garbageItem.GetGarbageData();
+
+        // 1. Check if player is strong enough
+        if (playerStrength < data.garbageTier)
+        {
+            Debug.LogWarning($"Not strong enough to pick up {data.itemName} (Tier {data.garbageTier}).");
+            return false;
         }
 
+        // 2. Store the item to be collected
+        _currentItemToCollect = garbageItem;
+
+        // 3. Trigger the animation on the controller
+        _playerController.StartPickUp(garbageItem.playerAnimationDuration, false);
+
+        Debug.Log($"Initiated pickup sequence for {data.itemName}. Waiting for animation...");
         return true;
+    }
+
+    /// <summary>
+    /// Called by the ThirdPersonController's OnPickupAnimationComplete event.
+    /// </summary>
+    private void FinalizePickup()
+    {
+        if (_currentItemToCollect == null)
+        {
+            // This can happen if the event fires but no item was being collected
+            // (e.g., if another system triggers the animation)
+            return;
+        }
+
+        GarbageData data = _currentItemToCollect.GetGarbageData();
+
+        // 1. Add item to inventory
+        AddGarbageToInventory(data);
+
+        // 2. Tell the item it has been collected (so it can destroy itself)
+        _currentItemToCollect.NotifyCollected();
+
+        // 3. Clear the reference
+        _currentItemToCollect = null;
     }
 
     public int DropOffGarbage()
@@ -82,25 +149,18 @@ public class PlayerGarbageHandler : MonoBehaviour
         Debug.Log($"Dropped off {_carriedGarbage.Count} items for ${totalValue}");
         _money += totalValue;
 
-        
-        // Clear inventory
         _carriedGarbage.Clear();
         _currentCapacity = 0;
 
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
         onMoneyChanged.Invoke(_money);
-        // Here you can fire an event to update the UI (capacity, cash)
-        
+
         return totalValue;
     }
 
-
-    public float GetMoney()
-    {
-        return _money;
-    }
-
-    
+    // ===================================
+    // ECONOMY & UPGRADES
+    // ===================================
 
     public bool CanAfford(float amount)
     {
@@ -109,11 +169,7 @@ public class PlayerGarbageHandler : MonoBehaviour
 
     public bool Spend(float amount)
     {
-        if (amount <= 0)
-        {
-            Debug.LogError("Attempted to spend a non-positive amount.");
-            return false;
-        }
+        if (amount <= 0) return false;
 
         if (CanAfford(amount))
         {
@@ -124,30 +180,24 @@ public class PlayerGarbageHandler : MonoBehaviour
         }
         else
         {
-            // Now, the failure logic is executed whenever the Spend method is called
             float needed = amount - _money;
-            Debug.LogWarning($"Not enough funds! You need ${needed:F2} more to buy this item (Cost: ${amount:F2}, Current: ${_money:F2}).");
+            Debug.LogWarning($"Not enough funds! Need ${needed:F2} more.");
             return false;
         }
     }
 
     public void UpgradeMaxCapacity(int increaseAmount)
     {
+        if (increaseAmount <= 0) return;
         maxCapacity += increaseAmount;
+        Debug.Log($"Max Capacity upgraded to {maxCapacity}.");
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
     }
 
     public void UpgradePlayerStrength(int increaseAmount = 1)
     {
+        if (increaseAmount <= 0) return;
         playerStrength += increaseAmount;
-        // Optionally clamp or add an event here
+        Debug.Log($"Player Strength upgraded to Tier {playerStrength}.");
     }
-
-
-
-
-
-
-
-
 }

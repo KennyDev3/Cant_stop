@@ -1,5 +1,6 @@
-﻿ using UnityEngine;
-#if ENABLE_INPUT_SYSTEM 
+﻿using UnityEngine;
+using System;
+#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
 
@@ -8,10 +9,19 @@ using UnityEngine.InputSystem;
 
 namespace StarterAssets
 {
+
+    public enum PlayerActivityState
+    {
+        Free,      // Default state: can move, jump, sprint
+        PickingUp, // Performing a non-interruptible/interruptible action
+    }
+
     [RequireComponent(typeof(CharacterController))]
-#if ENABLE_INPUT_SYSTEM 
+#if ENABLE_INPUT_SYSTEM
     [RequireComponent(typeof(PlayerInput))]
 #endif
+
+
     public class ThirdPersonController : MonoBehaviour
     {
         [Header("Player")]
@@ -75,6 +85,10 @@ namespace StarterAssets
         [Tooltip("For locking the camera position on all axis")]
         public bool LockCameraPosition = false;
 
+        // ------------------ DECOUPLED EVENT ------------------
+        public event Action OnPickupAnimationComplete;
+        // -----------------------------------------------------
+
         // cinemachine
         private float _cinemachineTargetYaw;
         private float _cinemachineTargetPitch;
@@ -86,14 +100,17 @@ namespace StarterAssets
         private float _rotationVelocity;
         private float _verticalVelocity;
         private float _terminalVelocity = 53.0f;
-        private PlayerStamina _playerStamina; // Stamina Meter
-        private PlayerGarbageHandler _playerGarbageHandler; // For overencumberence check
-        
+        private PlayerStamina _playerStamina;
+        private PlayerGarbageHandler _playerGarbageHandler;
 
 
         // timeout deltatime
         private float _jumpTimeoutDelta;
         private float _fallTimeoutDelta;
+
+        private PlayerActivityState _currentState = PlayerActivityState.Free;
+        private float _pickUpAnimationLength = 1.5f; // Duration set by the caller script
+        private bool _isPickUpCancelable = false; // Is movement allowed to interrupt the pickup?
 
         // animation IDs
         private int _animIDSpeed;
@@ -101,14 +118,17 @@ namespace StarterAssets
         private int _animIDJump;
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
+        private int _animIDPickUp;
 
-#if ENABLE_INPUT_SYSTEM 
+#if ENABLE_INPUT_SYSTEM
         private PlayerInput _playerInput;
 #endif
         private Animator _animator;
         private CharacterController _controller;
         private StarterAssetsInputs _input;
         private GameObject _mainCamera;
+
+
 
         private const float _threshold = 0.01f;
 
@@ -139,12 +159,12 @@ namespace StarterAssets
         private void Start()
         {
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            
+
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
             _playerStamina = GetComponent<PlayerStamina>();
-#if ENABLE_INPUT_SYSTEM 
+#if ENABLE_INPUT_SYSTEM
             _playerInput = GetComponent<PlayerInput>();
             _playerGarbageHandler = GetComponent<PlayerGarbageHandler>();
 #else
@@ -162,9 +182,39 @@ namespace StarterAssets
         {
             _hasAnimator = TryGetComponent(out _animator);
 
-            JumpAndGravity();
+            // Grounded Check always runs to ensure accurate state
             GroundedCheck();
-            Move();
+
+            // Gated Logic: Only process movement if in Free state
+            if (_currentState == PlayerActivityState.Free)
+            {
+                JumpAndGravity();
+                Move();
+            }
+            else // Logic while in a restricted state (PickingUp)
+            {
+                // Still apply gravity to prevent floating!
+                JumpAndGravity();
+
+                // Check for movement input if the action is cancelable
+                if (_isPickUpCancelable && _input.move != Vector2.zero)
+                {
+                    // If movement input is detected AND it's cancelable, force-exit
+                    CancelInvoke(nameof(FinishPickUp)); // Stop any existing timer
+                    FinishPickUp();
+                }
+
+                // Apply movement vector of zero to stop horizontal motion
+                Vector3 verticalMovement = new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime;
+                _controller.Move(verticalMovement);
+
+                // Keep Speed animator parameter at 0 for idle pose
+                if (_hasAnimator)
+                {
+                    _animator.SetFloat(_animIDSpeed, 0f);
+                    _animator.SetFloat(_animIDMotionSpeed, 0f);
+                }
+            }
         }
 
         private void LateUpdate()
@@ -179,6 +229,7 @@ namespace StarterAssets
             _animIDJump = Animator.StringToHash("Jump");
             _animIDFreeFall = Animator.StringToHash("FreeFall");
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+            _animIDPickUp = Animator.StringToHash("PickUp");
         }
 
         private void GroundedCheck()
@@ -218,7 +269,7 @@ namespace StarterAssets
         }
 
         private void Move()
-        {   
+        {
             float targetSpeed;
             bool isOverencumbered = _playerGarbageHandler != null && _playerGarbageHandler.IsOverencumbered;
 
@@ -293,7 +344,7 @@ namespace StarterAssets
 
             // move the player
             _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
-                             new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+                              new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
             // update animator if using character
             if (_hasAnimator)
@@ -406,7 +457,7 @@ namespace StarterAssets
             {
                 if (FootstepAudioClips.Length > 0)
                 {
-                    var index = Random.Range(0, FootstepAudioClips.Length);
+                    var index = UnityEngine.Random.Range(0, FootstepAudioClips.Length);
                     AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
                 }
             }
@@ -419,5 +470,57 @@ namespace StarterAssets
                 AudioSource.PlayClipAtPoint(LandingAudioClip, transform.TransformPoint(_controller.center), FootstepAudioVolume);
             }
         }
+
+        // ------------------ DECOUPLED PICKUP METHODS ------------------
+
+        public void StartPickUp(float animationDuration, bool isCancelable) // No itemToCollect parameter
+        {
+            if (!Grounded || _currentState != PlayerActivityState.Free)
+            {
+                Debug.LogWarning("Pickup blocked by state checks.");
+                return;
+            }
+
+            _pickUpAnimationLength = animationDuration;
+            _isPickUpCancelable = isCancelable;
+
+            _currentState = PlayerActivityState.PickingUp;
+
+            if (_hasAnimator)
+            {
+                Debug.Log("Attempting to start animation. Animator active: " + _animator.gameObject.activeInHierarchy);
+                // Using the Any State Transition method (StartPickUpTrigger)
+                _animator.SetTrigger("StartPickUpTrigger");
+            }
+
+            if (!_isPickUpCancelable)
+            {
+                // Start the timer to force a transition out of the state
+                Invoke(nameof(FinishPickUp), _pickUpAnimationLength + 0.1f);
+            }
+        }
+
+        private void FinishPickUp()
+        {
+            if (_currentState == PlayerActivityState.PickingUp)
+            {
+                _currentState = PlayerActivityState.Free;
+
+                // Fire event: The PlayerGarbageHandler (the coordinator) listens to this event
+                // and will handle the item collection and destruction.
+                OnPickupAnimationComplete?.Invoke();
+
+                // ANIMATION: Return control to the Base Layer
+                if (_hasAnimator)
+                {
+                    _animator.SetTrigger("ReturnToMovement");
+                }
+            }
+        }
+
+        // --------------------------------------------------------------
+
     }
+
+
 }

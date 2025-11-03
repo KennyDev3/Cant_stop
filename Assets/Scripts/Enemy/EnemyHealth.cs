@@ -42,7 +42,8 @@ public class EnemyHealth : MonoBehaviour
         
         if (enemyData.bloodVFX != null)
         {
-            GameObject effect = Instantiate(enemyData.bloodVFX, position, Quaternion.identity);
+            GameObject effect = Instantiate(enemyData.bloodVFX, position, Quaternion.Euler(0, 180, 0));
+
 
             Destroy(effect, particleEffectDestroyTime);
           
