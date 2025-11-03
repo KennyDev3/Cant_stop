@@ -10,8 +10,14 @@ public class TruckTurret : MonoBehaviour
     // The part that rotates horizontally (e.g., the base or the whole gun mount)
     public Transform turretPivot;
     // The point where the raycast/bullet originates
-    public Transform muzzlePoint; 
-    
+    public Transform muzzlePoint;
+
+    [Header("VFX")]
+    public GameObject hitVFXPrefab;
+
+    [Header("Accuracy")]
+    public float maxHitDeviation = 0.5f;
+
     private Transform currentTarget;
     private float fireTimer;
     private float shootingAngle = 45f;
@@ -195,41 +201,60 @@ public class TruckTurret : MonoBehaviour
             }
         }
     }
-    
+
     private void PerformHitscanShot(Vector3 direction)
     {
         // Placeholder for visual effects (muzzle flash, sound)
         // StartCoroutine(HandleVisualEffects()); 
 
         RaycastHit hit;
-        
-        // Raycast from the muzzle point in the direction of the target
+
         if (Physics.Raycast(muzzlePoint.position, direction, out hit, turretData.targetRange, turretData.enemyLayer))
         {
-            // Draw a successful hit line (visible in Scene view)
-            Debug.DrawRay(muzzlePoint.position, direction * hit.distance, Color.red, 0.5f); 
-            
+           
+            Vector3 randomOffset = new Vector3(
+                Random.Range(-maxHitDeviation, maxHitDeviation), // X-axis (side-to-side)
+                Random.Range(-maxHitDeviation, maxHitDeviation), // Y-axis (up-down)
+                0f // No depth deviation needed
+            );
+
+           
+            Vector3 deviatedPoint = hit.point + hit.collider.transform.TransformDirection(randomOffset);
+
+            // Hit VFX
+            if (hitVFXPrefab != null)
+            {
+                hit = HitVFX(hit, deviatedPoint);
+            }
+
+            Debug.DrawRay(hit.point, (deviatedPoint - hit.point), Color.magenta, 0.5f);
+
+            Debug.DrawRay(muzzlePoint.position, direction * hit.distance, Color.red, 0.5f);
+
             EnemyHealth enemyHealth = hit.collider.GetComponent<EnemyHealth>();
             if (enemyHealth != null)
             {
-                // Damage the enemy immediately
-                enemyHealth.TakeDamage(_turretDamage, hit.point);
-                Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{turretData.damage} damage</color>.");
+                // Damage the enemy, using the DEVIATED POINT for the damage effect (e.g., blood spatter, decal)
+                enemyHealth.TakeDamage(_turretDamage, deviatedPoint);
+                Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{turretData.damage} damage</color>. Hit deviated by up to {maxHitDeviation:F2}m.");
             }
             else
             {
-                 Debug.Log($"<color=orange>MISS/FRIENDLY FIRE:</color> Raycast hit {hit.collider.name}, but it has no EnemyHealth script.");
+                Debug.Log($"<color=orange>MISS/FRIENDLY FIRE:</color> Raycast hit {hit.collider.name}, but it has no EnemyHealth script.");
             }
-            
-            // Placeholder for impact effect at hit.point
+
+            // Placeholder for impact effect at the DEVIATED POINT
+
         }
         else
         {
-             // Draw a missed shot line (visible in Scene view)
-             Debug.DrawRay(muzzlePoint.position, direction * turretData.targetRange, Color.yellow, 0.5f); 
-             Debug.Log($"<color=red>MISS:</color> Hitscan missed the target (possible line-of-sight block).");
+            // Draw a missed shot line (visible in Scene view)
+            Debug.DrawRay(muzzlePoint.position, direction * turretData.targetRange, Color.yellow, 0.5f);
+            Debug.Log($"<color=red>MISS:</color> Hitscan missed the target (possible line-of-sight block).");
         }
     }
+
+    
 
     public void IncreaseTurretDamage(float increaseAmount)
     {
@@ -241,6 +266,18 @@ public class TruckTurret : MonoBehaviour
     {
         _turretFireRate -= increaseAmount;
         Debug.Log(_turretFireRate);
+    }
+
+    private RaycastHit HitVFX(RaycastHit hit, Vector3 deviatedPoint)
+    {
+        Quaternion impactRotation = Quaternion.LookRotation(hit.normal);
+
+        Instantiate(
+            hitVFXPrefab,
+            deviatedPoint,
+            impactRotation
+        );
+        return hit;
     }
 
     private void OnDrawGizmosSelected()
