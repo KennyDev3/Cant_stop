@@ -109,7 +109,7 @@ namespace StarterAssets
         private float _fallTimeoutDelta;
 
         private PlayerActivityState _currentState = PlayerActivityState.Free;
-        private float _pickUpAnimationLength = 1.5f; // Duration set by the caller script
+        public float _pickUpAnimationLength = 1.5f; // Duration set by the caller script
         private bool _isPickUpCancelable = false; // Is movement allowed to interrupt the pickup?
 
         // animation IDs
