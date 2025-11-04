@@ -11,9 +11,25 @@ public class TruckTurret : MonoBehaviour
     public Transform turretPivot;
     // The point where the raycast/bullet originates
     public Transform muzzlePoint;
+    public Transform ejectionPort;
+
 
     [Header("VFX")]
+    public GameObject muzzleVFXPrefab;
     public GameObject hitVFXPrefab;
+    public GameObject bulletTrailPrefab; 
+    public float trailSpeed = 200f;
+
+
+    [Header("Bullet Casing")]
+    public GameObject casingPrefab;
+    public float ejectForce = 15f;
+    [Tooltip("Randomness applied to the ejection force (min/max range).")]
+    public Vector2 forceRandomness = new Vector2(0.5f, 1.5f);
+    [Tooltip("How much random spin (torque) is applied to the casing.")]
+    public float maxRandomSpin = 10f;
+    [Tooltip("How long before the casing is automatically destroyed.")]
+    public float casingLifetime = 6f;
 
     [Header("Accuracy")]
     public float maxHitDeviation = 0.5f;
@@ -192,7 +208,10 @@ public class TruckTurret : MonoBehaviour
             {
                 fireTimer = 0f;
                 Debug.Log($"<color=cyan>{gameObject.name} firing at {currentTarget.name}. Angle difference: {angle:F2} degrees.</color>");
-                PerformHitscanShot(targetDir);
+
+                PlayMuzzleFlash();              // 1. Play Muzzle VFX
+                EjectCasing();                 // 2. Eject Casing
+                PerformHitscanShot(targetDir);// 3. Perform Hitscan
             }
             else
             {
@@ -208,33 +227,32 @@ public class TruckTurret : MonoBehaviour
         // StartCoroutine(HandleVisualEffects()); 
 
         RaycastHit hit;
+        Vector3 trailEndPoint; 
 
         if (Physics.Raycast(muzzlePoint.position, direction, out hit, turretData.targetRange, turretData.enemyLayer))
         {
-           
+            trailEndPoint = hit.point; 
+
             Vector3 randomOffset = new Vector3(
                 Random.Range(-maxHitDeviation, maxHitDeviation), // X-axis (side-to-side)
                 Random.Range(-maxHitDeviation, maxHitDeviation), // Y-axis (up-down)
-                0f // No depth deviation needed
+                0f 
             );
 
-           
             Vector3 deviatedPoint = hit.point + hit.collider.transform.TransformDirection(randomOffset);
 
             // Hit VFX
             if (hitVFXPrefab != null)
             {
-                hit = HitVFX(hit, deviatedPoint);
+                hit = HitVFX(hit, deviatedPoint); // Your code
             }
 
             Debug.DrawRay(hit.point, (deviatedPoint - hit.point), Color.magenta, 0.5f);
-
             Debug.DrawRay(muzzlePoint.position, direction * hit.distance, Color.red, 0.5f);
 
             EnemyHealth enemyHealth = hit.collider.GetComponent<EnemyHealth>();
             if (enemyHealth != null)
             {
-                // Damage the enemy, using the DEVIATED POINT for the damage effect (e.g., blood spatter, decal)
                 enemyHealth.TakeDamage(_turretDamage, deviatedPoint);
                 Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{turretData.damage} damage</color>. Hit deviated by up to {maxHitDeviation:F2}m.");
             }
@@ -242,19 +260,24 @@ public class TruckTurret : MonoBehaviour
             {
                 Debug.Log($"<color=orange>MISS/FRIENDLY FIRE:</color> Raycast hit {hit.collider.name}, but it has no EnemyHealth script.");
             }
-
-            // Placeholder for impact effect at the DEVIATED POINT
-
         }
         else
         {
-            // Draw a missed shot line (visible in Scene view)
+            
+            trailEndPoint = muzzlePoint.position + direction * turretData.targetRange;
+
+            // Your existing miss logic
             Debug.DrawRay(muzzlePoint.position, direction * turretData.targetRange, Color.yellow, 0.5f);
             Debug.Log($"<color=red>MISS:</color> Hitscan missed the target (possible line-of-sight block).");
         }
+
+        if (bulletTrailPrefab != null && muzzlePoint != null)
+        {
+            StartCoroutine(SpawnTrail(trailEndPoint));
+        }
     }
 
-    
+
 
     public void IncreaseTurretDamage(float increaseAmount)
     {
@@ -268,18 +291,7 @@ public class TruckTurret : MonoBehaviour
         Debug.Log(_turretFireRate);
     }
 
-    private RaycastHit HitVFX(RaycastHit hit, Vector3 deviatedPoint)
-    {
-        Quaternion impactRotation = Quaternion.LookRotation(hit.normal);
-
-        Instantiate(
-            hitVFXPrefab,
-            deviatedPoint,
-            impactRotation
-        );
-        return hit;
-    }
-
+    
     private void OnDrawGizmosSelected()
     {
         if (turretData == null) return;
@@ -301,6 +313,103 @@ public class TruckTurret : MonoBehaviour
             Gizmos.DrawRay(muzzlePoint.position, muzzlePoint.forward * 5f);
         }
     }
+    private RaycastHit HitVFX(RaycastHit hit, Vector3 deviatedPoint)
+    {
+        Quaternion impactRotation = Quaternion.LookRotation(hit.normal);
 
-    
+        Instantiate(
+            hitVFXPrefab,
+            deviatedPoint,
+            impactRotation
+        );
+        return hit;
+    }
+
+    private void PlayMuzzleFlash()
+    {
+        if (muzzleVFXPrefab == null || muzzlePoint == null)
+        {
+            return;
+        }
+
+        GameObject muzzleFlash = Instantiate(
+            muzzleVFXPrefab,
+            muzzlePoint.position,
+            muzzlePoint.rotation,
+            muzzlePoint 
+        );
+
+        
+        Destroy(muzzleFlash, 0.5f);
+    }
+
+
+    private IEnumerator SpawnTrail(Vector3 endPoint)
+    {
+        GameObject trailObject = Instantiate(bulletTrailPrefab, muzzlePoint.position, Quaternion.identity);
+
+        float distance = Vector3.Distance(muzzlePoint.position, endPoint);
+        float timeToTravel = distance / trailSpeed;
+        float timer = 0f;
+
+        while (timer < timeToTravel)
+        {
+            trailObject.transform.position = Vector3.Lerp(muzzlePoint.position, endPoint, timer / timeToTravel);
+
+            timer += Time.deltaTime;
+            yield return null; 
+        }
+
+        trailObject.transform.position = endPoint;
+
+        Destroy(trailObject, 1f);
+    }
+
+    private void EjectCasing()
+    {
+        if (casingPrefab == null || ejectionPort == null)
+        {
+            Debug.LogError("Casing Prefab or Ejection Port is missing!");
+            return;
+        }
+
+        GameObject casingObject = Instantiate(
+            casingPrefab,
+            ejectionPort.position,
+            ejectionPort.rotation
+        );
+
+        Rigidbody casingRb = casingObject.GetComponent<Rigidbody>();
+        if (casingRb == null)
+        {
+            Debug.LogError("Casing prefab must have a Rigidbody component!");
+            Destroy(casingObject);
+            return;
+        }
+
+        
+        Vector3 baseEjectDirection = ejectionPort.right; 
+
+       
+        float randomMagnitude = Random.Range(forceRandomness.x, forceRandomness.y) * ejectForce;
+
+       
+        Vector3 randomizedDirection = baseEjectDirection + new Vector3(
+            Random.Range(-0.1f, 0.1f),  
+            Random.Range(0.2f, 0.5f),   
+            Random.Range(-0.05f, 0.05f) 
+        );
+        randomizedDirection.Normalize(); // Keep the direction vector unit length
+
+        casingRb.AddForce(randomizedDirection * randomMagnitude, ForceMode.Impulse);
+
+        
+        casingRb.AddTorque(
+            Random.insideUnitSphere * maxRandomSpin,
+            ForceMode.Impulse
+        );
+
+        Destroy(casingObject, casingLifetime);
+    }
+
 }
