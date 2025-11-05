@@ -12,6 +12,9 @@ public class EnemyController : MonoBehaviour
 
     private Transform playerTarget;
     private Transform[] truckSideTargets; //  array for truck targets
+
+    private Animator animator;
+
     // State Machine
     private enum State { Idle, Chasing, Attacking }
     private State currentState;
@@ -25,8 +28,10 @@ public class EnemyController : MonoBehaviour
     agent = GetComponent<NavMeshAgent>();
     agent.speed = enemyData.moveSpeed;
 
-    // --- Find Targets once in Start ---
-    GameObject playerGO = GameObject.FindGameObjectWithTag("Player");
+    animator = GetComponentInChildren<Animator>();
+
+        // --- Find Targets once in Start ---
+        GameObject playerGO = GameObject.FindGameObjectWithTag("Player");
     if (playerGO != null) playerTarget = playerGO.transform;
     
     // Find the parent truck object
@@ -49,6 +54,13 @@ public class EnemyController : MonoBehaviour
 
     void Update()
     {
+        // We use magnitude (length) of the velocity vector.
+        if (animator != null)
+        {
+            float speed = agent.velocity.magnitude;
+            animator.SetFloat("Speed", speed);
+        }
+
         // Don't check timers or states if no potential targets exist
         if (playerTarget == null && truckSideTargets == null) return;
 
@@ -202,6 +214,12 @@ public class EnemyController : MonoBehaviour
     
    private IEnumerator PerformAttack()
     {
+
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
+
         // --- This is where the attack animation would start ---
         Debug.Log(gameObject.name + " starts attack animation!");
 
@@ -239,8 +257,14 @@ public class EnemyController : MonoBehaviour
         }
         // --- Animation would end here ---
     }
-    
+
+    public void PlayHitAnimation()
+    {
+        if (animator != null)
+            animator.SetTrigger("GetHit");
+    }
 
 
-    
+
+
 }
