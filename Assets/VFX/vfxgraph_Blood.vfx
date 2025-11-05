@@ -91,7 +91,7 @@ MonoBehaviour:
   categories: []
   uiBounds:
     serializedVersion: 2
-    x: 46
+    x: 45
     y: -1423
     width: 1766
     height: 2783
@@ -5538,7 +5538,7 @@ MonoBehaviour:
       m_Type:
         m_SerializableType: UnityEditor.VFX.Plane, Unity.VisualEffectGraph.Editor,
           Version=0.0.0.0, Culture=neutral, PublicKeyToken=null
-      m_SerializableObject: '{"position":{"x":0.0,"y":-1.3899999856948853,"z":0.0},"normal":{"x":-0.3700000047683716,"y":1.0,"z":0.0}}'
+      m_SerializableObject: '{"position":{"x":0.0,"y":-1.2000000476837159,"z":0.0},"normal":{"x":-0.3700000047683716,"y":1.0,"z":0.0}}'
     m_Space: 0
   m_Property:
     name: Plane

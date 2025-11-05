@@ -31,6 +31,9 @@ public class EnemyHealth : MonoBehaviour
         currentHealth -= damage;
         PlayHitEffect(hitPoint);
 
+        if (enemyController != null)
+            enemyController.PlayHitAnimation();
+
         if (currentHealth <= 0)
         {
             Die();
@@ -49,6 +52,8 @@ public class EnemyHealth : MonoBehaviour
           
         }
     }
+
+
 
 
 

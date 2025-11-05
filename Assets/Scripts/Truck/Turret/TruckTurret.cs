@@ -35,8 +35,11 @@ public class TruckTurret : MonoBehaviour
     public float maxHitDeviation = 0.5f;
 
     private Transform currentTarget;
+    private Collider currentTargetCollider;
     private float fireTimer;
     private float shootingAngle = 45f;
+
+    [Header("Turret Stats")]
     public float _turretDamage;
     public float _turretFireRate;
 
@@ -105,6 +108,7 @@ public class TruckTurret : MonoBehaviour
         if (currentTarget == null)
         {
             Debug.LogWarning($"{gameObject.name} Validation check failed: currentTarget reference is null.");
+            currentTargetCollider = null;
             return false;
         }
         
@@ -113,6 +117,7 @@ public class TruckTurret : MonoBehaviour
         if (currentTarget.GetComponent<GarbageItem>() != null)
         {
             Debug.Log($"<color=red>TARGET DROPPED:</color> {currentTarget.name} is now a GarbageItem (DEAD).");
+            currentTargetCollider = null;
             return false;
         }
         
@@ -122,12 +127,14 @@ public class TruckTurret : MonoBehaviour
         if (targetHealth == null) 
         {
             Debug.Log($"<color=red>TARGET DROPPED:</color> {currentTarget.name} has no EnemyHealth component (invalid target type).");
+            currentTargetCollider = null;
             return false;
         }
         
         if (!targetHealth.enabled) 
         {
             Debug.Log($"<color=red>TARGET DROPPED:</color> {currentTarget.name}'s EnemyHealth component is disabled (is dead).");
+            currentTargetCollider = null;
             return false;
         }
         
@@ -135,6 +142,7 @@ public class TruckTurret : MonoBehaviour
         if (Vector3.Distance(transform.position, currentTarget.position) > turretData.targetRange)
         {
             Debug.Log($"<color=yellow>TARGET DROPPED:</color> {currentTarget.name} is out of range ({Vector3.Distance(transform.position, currentTarget.position):F1}m).");
+            currentTargetCollider = null;
             return false;
         }
         
@@ -170,16 +178,26 @@ public class TruckTurret : MonoBehaviour
             }
         }
         currentTarget = closestEnemy;
+
+        if (currentTarget != null) 
+        {
+            // Store the collider of the new target
+            currentTargetCollider = currentTarget.GetComponent<Collider>();
+        }
     }
 
     private void RotateTowardsTarget()
     {
+        if (currentTargetCollider == null) return;
+
         // Use the turretPivot if assigned, otherwise use the turret's root transform
         Transform pivot = turretPivot != null ? turretPivot : transform;
 
+        Vector3 targetPoint = currentTargetCollider.bounds.center; // <-- CHANGE
+
         // Calculate the direction vector to the target
-        Vector3 direction = currentTarget.position - pivot.position; 
-        
+        Vector3 direction = targetPoint - pivot.position; // <-- CHANGE 
+
         // Keep the rotation flat (only on the Y-axis) for the turret pivot
         direction.y = 0;
 
@@ -198,9 +216,11 @@ public class TruckTurret : MonoBehaviour
     {
         if (fireTimer >= _turretFireRate)
         {
+            if (currentTargetCollider == null) return;
 
+            Vector3 targetPoint = currentTargetCollider.bounds.center;
             // Recalculate direction right before firing for precision
-            Vector3 targetDir = (currentTarget.position - muzzlePoint.position).normalized;
+            Vector3 targetDir = (targetPoint - muzzlePoint.position).normalized; 
             float angle = Vector3.Angle(muzzlePoint.forward, targetDir);
 
             // Using 10f tolerance, but you can adjust this via turretData if needed
