@@ -137,7 +137,9 @@ public class TruckTurret : MonoBehaviour
             currentTargetCollider = null;
             return false;
         }
+
         
+
         // 4. Check if the target is out of range
         if (Vector3.Distance(transform.position, currentTarget.position) > turretData.targetRange)
         {
@@ -181,7 +183,6 @@ public class TruckTurret : MonoBehaviour
 
         if (currentTarget != null) 
         {
-            // Store the collider of the new target
             currentTargetCollider = currentTarget.GetComponent<Collider>();
         }
     }
@@ -190,21 +191,15 @@ public class TruckTurret : MonoBehaviour
     {
         if (currentTargetCollider == null) return;
 
-        // Use the turretPivot if assigned, otherwise use the turret's root transform
         Transform pivot = turretPivot != null ? turretPivot : transform;
 
-        Vector3 targetPoint = currentTargetCollider.bounds.center; // <-- CHANGE
+        Vector3 targetPoint = currentTargetCollider.bounds.center; 
+        Vector3 direction = targetPoint - pivot.position; 
 
-        // Calculate the direction vector to the target
-        Vector3 direction = targetPoint - pivot.position; // <-- CHANGE 
-
-        // Keep the rotation flat (only on the Y-axis) for the turret pivot
         direction.y = 0;
 
-        // Create the rotation quaternion
         Quaternion lookRotation = Quaternion.LookRotation(direction);
 
-        // Smoothly rotate the turret pivot towards the target (the "lock on")
         pivot.rotation = Quaternion.Slerp(
             pivot.rotation,
             lookRotation,
@@ -219,11 +214,10 @@ public class TruckTurret : MonoBehaviour
             if (currentTargetCollider == null) return;
 
             Vector3 targetPoint = currentTargetCollider.bounds.center;
-            // Recalculate direction right before firing for precision
             Vector3 targetDir = (targetPoint - muzzlePoint.position).normalized; 
             float angle = Vector3.Angle(muzzlePoint.forward, targetDir);
 
-            // Using 10f tolerance, but you can adjust this via turretData if needed
+            
             if (angle < shootingAngle) 
             {
                 fireTimer = 0f;
