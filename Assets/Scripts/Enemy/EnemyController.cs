@@ -264,6 +264,16 @@ public class EnemyController : MonoBehaviour
             animator.SetTrigger("GetHit");
     }
 
+    public void HandleDeath()
+    {
+        this.enabled = false;
+
+        if (animator != null)
+        {
+            animator.enabled = false;
+        }
+    }
+
 
 
 
