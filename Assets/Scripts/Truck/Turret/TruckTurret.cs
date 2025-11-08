@@ -138,7 +138,12 @@ public class TruckTurret : MonoBehaviour
             return false;
         }
 
-        
+        if (targetHealth.isDead)
+        {
+            Debug.Log("It's Dead yo");
+            currentTargetCollider = null;
+            return false;
+        }
 
         // 4. Check if the target is out of range
         if (Vector3.Distance(transform.position, currentTarget.position) > turretData.targetRange)

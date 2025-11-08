@@ -24,7 +24,7 @@ public class GarbageItem : MonoBehaviour, IInteractable
     private GameObject _infoUIInstance;
     private TextMeshProUGUI _infoUIText;
     private Vector3 _targetLocalScale = Vector3.zero;
-    private Outline _outline; // Assumes you have the "Outline" component script in your project
+    private Outline _outline; 
 
     void Awake()
     {
@@ -65,9 +65,7 @@ public class GarbageItem : MonoBehaviour, IInteractable
         return $"Press E to pick up {garbageData.itemName}";
     }
 
-    /// <summary>
-    /// Called by the PlayerInteractor when the player presses 'E'
-    /// </summary>
+    
     public void Interact(PlayerInteractor interactor)
     {
         var garbageHandler = interactor.GetComponent<PlayerGarbageHandler>();

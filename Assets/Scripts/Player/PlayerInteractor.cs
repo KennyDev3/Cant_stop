@@ -25,22 +25,17 @@ public class PlayerInteractor : MonoBehaviour
 
     void Update()
     {
-        // 1. ALWAYS check for interactables to keep _currentInteractable up to date.
         CheckForInteractable();
 
-        // 2. CHECK IF SHOP IS OPEN (The Piggyback Check)
         if (_shopManager != null && _shopManager.IsShopOpen)
         {
-            // Auto-Close Logic: If the player has moved out of range, _currentInteractable will be null.
             if (_currentInteractable == null)
             {
                 Debug.LogWarning("[PI Update] Shop Open. No interactable in range. Closing shop.");
                 _shopManager.CloseShop();
             }
 
-            // Input Consumption Logic: Always consume the input while the shop is open 
-            // to prevent the 'E' button from immediately re-triggering the interaction 
-            // after the shop closes (either by distance or pressing 'E' again).
+            
             if (_input.interact)
             {
                 _input.interact = false;
