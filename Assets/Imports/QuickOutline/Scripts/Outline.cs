@@ -48,6 +48,8 @@ public class Outline : MonoBehaviour {
     }
   }
 
+
+
   [Serializable]
   private class ListVector3 {
     public List<Vector3> data;
@@ -82,11 +84,14 @@ public class Outline : MonoBehaviour {
 
   void Awake() {
 
-    // Cache renderers
-    renderers = GetComponentsInChildren<Renderer>();
+    if (renderers == null || renderers.Length == 0)
+    {
+        // Cache renderers (original behavior for boxes/loot)
+        renderers = GetComponentsInChildren<Renderer>();
+    }
 
-    // Instantiate outline materials
-    outlineMaskMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineMask"));
+        // Instantiate outline materials
+        outlineMaskMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineMask"));
     outlineFillMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineFill"));
 
     outlineMaskMaterial.name = "OutlineMask (Instance)";
@@ -305,5 +310,9 @@ public class Outline : MonoBehaviour {
         outlineFillMaterial.SetFloat("_OutlineWidth", 0f);
         break;
     }
+
+
   }
+    
+
 }

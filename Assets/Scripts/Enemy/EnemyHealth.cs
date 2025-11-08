@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -5,17 +6,29 @@ public class EnemyHealth : MonoBehaviour
 {
     public EnemyData enemyData;
     private float currentHealth;
-    private bool isDead = false;
+    public bool isDead = false;
     private EnemyController enemyController;
     private NavMeshAgent navMeshAgent;
     private Collider enemyCollider;
     private Rigidbody rb;
+    public float makeCorposeInteractableDelay = 1.5f;
+    private float coprseInteractionSphereSize = 0.006f;
 
     private float particleEffectDestroyTime = 3f;
 
     [Header("Ragdoll Setup")]
     [Tooltip("Follows Ragdolled body on Death to allow Pickup")]
     public Transform ragdollRootBone;
+
+    [Tooltip("The GameObject that holds the mesh (sibling to the Hips).")]
+    public Transform adventurerModel;
+
+    [Header("Death Physics")]
+    public float deathForceMultiplier = 150f;
+
+
+
+
 
     void Start()
     {
@@ -38,6 +51,8 @@ public class EnemyHealth : MonoBehaviour
         if (enemyController != null)
             enemyController.PlayHitAnimation();
 
+
+
         if (currentHealth <= 0)
             Die();
     }
@@ -55,45 +70,98 @@ public class EnemyHealth : MonoBehaviour
     {
         isDead = true;
         Debug.Log(gameObject.name + " has died.");
+        
 
-        enemyController.HandleDeath();
+        enemyController.HandleDeath(); // disables animator
 
         if (enemyController != null) enemyController.enabled = false;
         if (navMeshAgent != null) navMeshAgent.enabled = false;
+        if (enemyCollider != null) enemyCollider.enabled = false;
 
-        if (rb != null)
+        Rigidbody[] ragdollRBs = ragdollRootBone.GetComponentsInChildren<Rigidbody>();
+        foreach (Rigidbody rb in ragdollRBs)
         {
-            rb.isKinematic = false;
-            rb.constraints = RigidbodyConstraints.None;
-            rb.useGravity = true;
-
-            Vector3 randomTorque = new Vector3(
-                Random.Range(-1f, 1f),
-                Random.Range(-0.5f, 0.5f),
-                Random.Range(-1f, 1f)
-            ) * 3f;
-
-            rb.AddTorque(randomTorque, ForceMode.VelocityChange);
-
-            Vector3 randomForce = new Vector3(
-                Random.Range(-0.5f, 0.5f),
-                0.2f,
-                Random.Range(-0.5f, 0.5f)
-            ) * 2f;
-
-            rb.AddForce(randomForce, ForceMode.VelocityChange);
+            if (rb.gameObject == ragdollRootBone.gameObject)
+            {
+                rb.isKinematic = false;
+            }
+            else
+            {
+                rb.isKinematic = false;
+            }
         }
 
-        if (enemyData.garbageDataOnDeath != null)
+        ApplyDeathForce(ragdollRBs);
+
+
+        if (enemyData.garbageDataOnDeath != null && adventurerModel != null)
         {
-            GarbageItem garbageItem = gameObject.AddComponent<GarbageItem>();
-            garbageItem.Initialize(enemyData.garbageDataOnDeath);
-            gameObject.layer = LayerMask.NameToLayer("Interactable");
-            Debug.Log(gameObject.name + " has become interactable garbage.");
+            // Start the coroutine to wait 2 seconds, then create the collider and components
+            StartCoroutine(ActivateLootColliderDelayed(makeCorposeInteractableDelay));
         }
         else
         {
-            if (enemyCollider != null) enemyCollider.enabled = false;
+            Debug.LogWarning("Enemy Data or Model reference missing. Loot process aborted.");
         }
+
+    }
+
+    private void ApplyDeathForce(Rigidbody[] rbs)
+    {
+        Rigidbody hipRB = ragdollRootBone.GetComponent<Rigidbody>();
+
+        if (hipRB != null)
+        {
+           
+            hipRB.linearVelocity = Vector3.zero; // Zero out NavMesh Movement momentum
+
+
+            
+            Vector3 backwardDirection = -transform.forward;
+            Vector3 horizontalForce = backwardDirection * deathForceMultiplier;
+
+            
+            float verticalOffset = 0.1f; 
+            Vector3 pointOfImpact = hipRB.position + ragdollRootBone.up * verticalOffset;
+
+            hipRB.AddForceAtPosition(horizontalForce, pointOfImpact, ForceMode.Impulse);
+
+            // : Apply minor torque for extra tumble
+            hipRB.AddTorque(Random.insideUnitSphere * deathForceMultiplier * 0.1f, ForceMode.Impulse);
+
+            Debug.Log($"Applied flinging death force of {horizontalForce} at offset position to the Hips.");
+        }
+
+        //  Apply a small, random force to the other limbs to make them flail out
+        foreach (Rigidbody rb in rbs)
+        {
+            if (rb != hipRB)
+            {
+                rb.AddForce(Random.insideUnitSphere * 10f, ForceMode.VelocityChange);
+            }
+        }
+    }
+
+    private IEnumerator ActivateLootColliderDelayed(float delay)
+    {
+        // Wait for the ragdoll to settle
+        yield return new WaitForSeconds(delay);
+
+        GameObject corpseGO = adventurerModel.gameObject;
+
+        
+        GarbageItem garbageItem = corpseGO.AddComponent<GarbageItem>();
+        garbageItem.Initialize(enemyData.garbageDataOnDeath);
+
+        SphereCollider interactionCollider = corpseGO.AddComponent<SphereCollider>();
+        interactionCollider.radius = coprseInteractionSphereSize;
+        interactionCollider.isTrigger = true;
+        interactionCollider.enabled = true; 
+
+        corpseGO.layer = LayerMask.NameToLayer("Interactable");
+
+        Debug.Log($"Loot collider (R={interactionCollider.radius}) activated on {corpseGO.name} after {delay} seconds.");
+
+        // Optional: Clean up the EnemyHealth component's original GO after a long delay
     }
 }
