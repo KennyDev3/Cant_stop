@@ -104,19 +104,22 @@ public class PlayerGarbageHandler : MonoBehaviour
             return false;
         }
 
-        // 2. Store the item to be collected
-        _currentItemToCollect = garbageItem;
+        
+        if (_playerController.StartPickUp(false))
+        {
+            
+            _currentItemToCollect = garbageItem;
 
-        // 3. Trigger the animation on the controller
-        _playerController.StartPickUp(garbageItem.playerAnimationDuration, false);
-
-        Debug.Log($"Initiated pickup sequence for {data.itemName}. Waiting for animation...");
-        return true;
+            Debug.Log($"Initiated pickup sequence for {data.itemName}. Waiting for animation...");
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 
-    /// <summary>
-    /// Called by the ThirdPersonController's OnPickupAnimationComplete event.
-    /// </summary>
+
     private void FinalizePickup()
     {
         if (_currentItemToCollect == null)
