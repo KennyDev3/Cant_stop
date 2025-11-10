@@ -1,23 +1,30 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 
+[RequireComponent(typeof(SphereCollider))]
 public class TruckMovement : MonoBehaviour
 {
+    [Header("Route & Speed")]
     public Route route;
     public float normalMoveSpeed = 5f;
     public float safeZoneMoveSpeed = 2f;
-    [Tooltip("How quickly the car rotates to face the waypoint (used as Slerp speed).")]
-    public float rotationSpeed = 10f; // Matches the original script's rotation multiplier
-    public float waypointReachedDistance = 0.1f; // Matches the original script's threshold
+    public float rotationSpeed = 5f;
 
-    // --- Private Variables ---
-    private float currentMoveSpeed;
-    private int currentWaypointIndex = 0;
+    [Header("Escort Feel & Behavior")]
+    public Transform playerTransform;
+    public float escortSafeZoneRadius = 8f;
+    public float escortAcceleration = 1.5f;
+    public float escortSafeZoneCenterOffset = 0f;
 
+    private float _patrolMoveSpeed;
+    private float _currentSpeed = 0f;
+    
+    private float _currentDistanceAlongRoute;
+    private float[] _waypointDistances;
+    private float _totalRouteLength;
 
     private void OnEnable()
     {
-        // Assuming SafeZone and GameManager exist in your project
         SafeZone.OnTruckEnteredSafeZone += SlowDown;
         SafeZone.OnTruckExitedSafeZone += SpeedUp;
     }
@@ -28,152 +35,202 @@ public class TruckMovement : MonoBehaviour
         SafeZone.OnTruckExitedSafeZone -= SpeedUp;
     }
 
-    // --- Initialization ---
-
     private void Start()
     {
-        // No Rigidbody check needed, but we keep initialization logic
-        currentMoveSpeed = normalMoveSpeed;
-        InitializeTruckPosition();
-    }
+        _patrolMoveSpeed = normalMoveSpeed;
 
-    // --- Existing Initialization Logic (Using Transform) ---
-    private void InitializeTruckPosition()
-    {
-        if (route == null || route.startPoint == null || route.waypoints.Count == 0)
+        if (!ValidateRoute() || playerTransform == null)
         {
-            Debug.LogError("Truck route or start point is not set up correctly!", this);
+            Debug.LogError("Truck is missing a Route or Player Transform! Disabling component.", this);
             this.enabled = false;
             return;
         }
 
-        int startIndex = route.waypoints.IndexOf(route.startPoint);
-
-        if (startIndex == -1)
-        {
-            Debug.LogError("The assigned 'startPoint' is not in the 'waypoints' list. Starting at index 0.", this);
-            startIndex = 0;
-        }
-
-        // Set the truck's position to the start point.
-        transform.position = route.startPoint.position;
-
-        // Set the truck's FIRST target to be the *next* waypoint after the start point.
-        currentWaypointIndex = (startIndex + 1) % route.waypoints.Count;
-
-        // Instantly rotate the truck to look at its actual first target.
-        Transform firstTarget = route.waypoints[currentWaypointIndex];
-        Vector3 initialDirection = (firstTarget.position - transform.position).normalized;
-
-        if (initialDirection.sqrMagnitude > 0.001f)
-        {
-            // Use transform.rotation for instant rotation
-            transform.rotation = Quaternion.LookRotation(initialDirection);
-        }
+        PrecalculateRouteData();
+        InitializeTruckPosition();
     }
 
-    // --- Movement Loop (Switched back to Update) ---
-
-    // Now uses Update() for frame-rate-dependent, direct Transform manipulation
     void Update()
     {
-        HandleMovement();
+        if (playerTransform != null)
+        {
+            HandleEscortMovement();
+        }
+        else
+        {
+            HandlePatrolMovement();
+        }
+        UpdateTransform();
     }
 
-    void HandleMovement()
+    void HandlePatrolMovement()
     {
-        if (route == null || route.waypoints.Count == 0) return;
-
-        // --- 1. Waypoint Reached Check ---
-        Transform targetWaypoint = route.waypoints[currentWaypointIndex];
-        Vector3 targetPosition = targetWaypoint.position;
-
-        // Calculate the distance using the Transform's current position
-        float distanceToWaypoint = Vector3.Distance(transform.position, targetPosition);
-
-        if (distanceToWaypoint < waypointReachedDistance)
+        _currentDistanceAlongRoute += _patrolMoveSpeed * Time.deltaTime;
+        if (_currentDistanceAlongRoute > _totalRouteLength)
         {
-            // Move to the next waypoint
-            currentWaypointIndex++;
+            _currentDistanceAlongRoute -= _totalRouteLength;
+        }
+    }
 
-            // Loop back to the first waypoint
-            if (currentWaypointIndex >= route.waypoints.Count)
+    void HandleEscortMovement()
+    {
+        float playerDistanceOnRoute = GetDistanceAlongRoute(playerTransform.position);
+
+        float directDistToPlayer = playerDistanceOnRoute - _currentDistanceAlongRoute;
+        float wrapDistToPlayer = (_totalRouteLength - Mathf.Abs(directDistToPlayer)) * -Mathf.Sign(directDistToPlayer);
+        float shortestDistToPlayer = Mathf.Abs(directDistToPlayer) < Mathf.Abs(wrapDistToPlayer) ? directDistToPlayer : wrapDistToPlayer;
+
+        float safeZoneCenter = _currentDistanceAlongRoute + escortSafeZoneCenterOffset; // Use the offset
+        float directDistToCenter = playerDistanceOnRoute - safeZoneCenter;
+        float wrapDistToCenter = (_totalRouteLength - Mathf.Abs(directDistToCenter)) * -Mathf.Sign(directDistToCenter);
+        float shortestDistToCenter = Mathf.Abs(directDistToCenter) < Mathf.Abs(wrapDistToCenter) ? directDistToCenter : wrapDistToCenter;
+
+
+        float targetSpeed = 0f;
+        int moveDirection = 1;
+
+        if (Mathf.Abs(shortestDistToCenter) > escortSafeZoneRadius) // Check against the offset center
+        {
+            targetSpeed = normalMoveSpeed;
+            moveDirection = System.Math.Sign(shortestDistToPlayer); // Move towards the player
+        }
+
+        _currentSpeed = Mathf.Lerp(_currentSpeed, targetSpeed, Time.deltaTime * escortAcceleration);
+        _currentDistanceAlongRoute += _currentSpeed * moveDirection * Time.deltaTime;
+
+        
+        _currentDistanceAlongRoute = (_totalRouteLength + (_currentDistanceAlongRoute % _totalRouteLength)) % _totalRouteLength;
+    }
+
+    void UpdateTransform()
+    {
+        RoutePositionInfo newPositionInfo = GetRoutePositionInfoAtDistance(_currentDistanceAlongRoute);
+        transform.position = newPositionInfo.Position;
+        
+        if (newPositionInfo.Direction != Vector3.zero)
+        {
+            Quaternion targetRotation = Quaternion.LookRotation(newPositionInfo.Direction);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+        }
+    }
+
+    private bool ValidateRoute()
+    {
+        if (route == null || route.waypoints.Count < 2) return false;
+        return true;
+    }
+
+    void PrecalculateRouteData()
+    {
+        _waypointDistances = new float[route.waypoints.Count];
+        _totalRouteLength = 0f;
+        for (int i = 0; i < route.waypoints.Count; i++)
+        {
+            _waypointDistances[i] = _totalRouteLength;
+            Vector3 start = route.waypoints[i].position;
+            Vector3 end = route.waypoints[(i + 1) % route.waypoints.Count].position;
+            _totalRouteLength += Vector3.Distance(start, end);
+        }
+    }
+
+    private void InitializeTruckPosition()
+    {
+        transform.position = route.startPoint != null ? route.startPoint.position : route.waypoints[0].position;
+        _currentDistanceAlongRoute = GetDistanceAlongRoute(transform.position);
+    }
+
+    private struct RoutePositionInfo { public Vector3 Position; public Vector3 Direction; }
+
+    private float GetDistanceAlongRoute(Vector3 worldPoint)
+    {
+        int closestSegmentIndex = 0;
+        float minDistanceToSegment = float.MaxValue;
+        Vector3 closestPointOnRoute = Vector3.zero;
+
+        for (int i = 0; i < route.waypoints.Count; i++)
+        {
+            Vector3 start = route.waypoints[i].position;
+            Vector3 end = route.waypoints[(i + 1) % route.waypoints.Count].position;
+            Vector3 pointOnSegment = GetClosestPointOnLineSegment(start, end, worldPoint);
+            float distance = Vector3.Distance(worldPoint, pointOnSegment);
+            if (distance < minDistanceToSegment)
             {
-                currentWaypointIndex = 0;
+                minDistanceToSegment = distance;
+                closestSegmentIndex = i;
+                closestPointOnRoute = pointOnSegment;
             }
-
-            // Re-target the position to the new waypoint (needed for calculation below)
-            targetPosition = route.waypoints[currentWaypointIndex].position;
         }
-
-        // --- 2. Calculate Direction and Movement (Direct Transform Move) ---
-        Vector3 directionToTarget = (targetPosition - transform.position);
-
-        // Use normalized direction for movement
-        Vector3 direction = directionToTarget.normalized;
-
-        // Move the truck towards the target at a constant speed
-        // Uses Time.deltaTime because it's in Update()
-        transform.position += direction * currentMoveSpeed * Time.deltaTime;
-
-        // --- 3. Rotate the truck to face the direction of movement ---
-        if (direction != Vector3.zero)
+        
+        Vector3 segmentStartPoint = route.waypoints[closestSegmentIndex].position;
+        float distanceIntoSegment = Vector3.Distance(segmentStartPoint, closestPointOnRoute);
+        return _waypointDistances[closestSegmentIndex] + distanceIntoSegment;
+    }
+    
+    private RoutePositionInfo GetRoutePositionInfoAtDistance(float distance)
+    {
+        distance = (_totalRouteLength + (distance % _totalRouteLength)) % _totalRouteLength;
+        
+        for (int i = 0; i < route.waypoints.Count; i++)
         {
-            Quaternion targetRotation = Quaternion.LookRotation(direction);
-
-            // Smoothly rotate using transform.rotation
-            transform.rotation = Quaternion.Slerp(
-                transform.rotation,
-                targetRotation,
-                Time.deltaTime * rotationSpeed
-            );
+            int nextIndex = (i + 1) % route.waypoints.Count;
+            if (_waypointDistances[i] <= distance && (nextIndex == 0 || _waypointDistances[nextIndex] > distance))
+            {
+                Vector3 start = route.waypoints[i].position;
+                Vector3 end = route.waypoints[nextIndex].position;
+                float distIntoSeg = distance - _waypointDistances[i];
+                float segLen = Vector3.Distance(start, end);
+                float t = segLen > 0 ? distIntoSeg / segLen : 0;
+                return new RoutePositionInfo { Position = Vector3.Lerp(start, end, t), Direction = (end - start).normalized };
+            }
         }
+        return new RoutePositionInfo { Position = route.waypoints[0].position, Direction = (route.waypoints[1].position - route.waypoints[0].position).normalized };
     }
-
-    // --- SafeZone Event Callbacks (Kept as is) ---
-    private void SlowDown()
+    
+    private Vector3 GetClosestPointOnLineSegment(Vector3 a, Vector3 b, Vector3 p)
     {
-        // Keeping original condition check
-        if (GameManager.Instance.CurrentRotation > 0)
-        {
-            currentMoveSpeed = safeZoneMoveSpeed;
-        }
+        Vector3 ab = b - a;
+        float magSqr = ab.sqrMagnitude;
+        if (magSqr < 0.001f) return a;
+        float t = Mathf.Clamp01(Vector3.Dot(p - a, ab) / magSqr);
+        return a + ab * t;
     }
+    
+    private void SlowDown() { _patrolMoveSpeed = safeZoneMoveSpeed; }
+    private void SpeedUp() { _patrolMoveSpeed = normalMoveSpeed; }
 
-    private void SpeedUp()
+    void OnDrawGizmos() 
     {
-        currentMoveSpeed = normalMoveSpeed;
-    }
-
-
-    void OnDrawGizmos()
-    {
-        // Gizmos are only drawn if the route and waypoints are properly assigned
         if (route != null && route.waypoints != null && route.waypoints.Count > 0)
         {
-            Gizmos.color = Color.yellow;
-            List<Transform> waypoints = route.waypoints;
-
-            for (int i = 0; i < waypoints.Count; i++)
+            Gizmos.color = Color.cyan;
+            for (int i = 0; i < route.waypoints.Count; i++)
             {
-                if (waypoints[i] == null) continue;
+                if (route.waypoints[i] == null) continue;
+                int nextIndex = (i + 1) % route.waypoints.Count;
+                if (route.waypoints[nextIndex] == null) continue;
 
-                Vector3 currentPoint = waypoints[i].position;
-
-                // Draw a sphere at each waypoint, using waypointReachedDistance
-                Gizmos.DrawWireSphere(currentPoint, waypointReachedDistance);
-
-                // Draw a line to the next waypoint
-                if (i < waypoints.Count - 1 && waypoints[i + 1] != null)
-                {
-                    Gizmos.DrawLine(currentPoint, waypoints[i + 1].position);
-                }
-                else if (waypoints.Count > 1 && waypoints[0] != null)
-                {
-                    // Draw a line back to the first point to complete the circuit
-                    Gizmos.DrawLine(currentPoint, waypoints[0].position);
-                }
+                Vector3 current = route.waypoints[i].position;
+                Vector3 next = route.waypoints[nextIndex].position;
+                Gizmos.DrawLine(current, next);
             }
+        }
+
+        if (Application.isPlaying)
+        {
+            Gizmos.color = Color.green;
+
+            float gizmoCenterDistance = _currentDistanceAlongRoute + escortSafeZoneCenterOffset;
+
+            RoutePositionInfo p1 = GetRoutePositionInfoAtDistance(gizmoCenterDistance - escortSafeZoneRadius);
+            RoutePositionInfo p2 = GetRoutePositionInfoAtDistance(gizmoCenterDistance + escortSafeZoneRadius);
+            RoutePositionInfo pCenter = GetRoutePositionInfoAtDistance(gizmoCenterDistance); 
+
+            Gizmos.DrawSphere(p1.Position, 0.75f); // 
+            Gizmos.DrawSphere(p2.Position, 0.75f); // 
+            Gizmos.DrawLine(p1.Position, p2.Position); 
+
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawSphere(pCenter.Position, 0.85f);
         }
     }
 }

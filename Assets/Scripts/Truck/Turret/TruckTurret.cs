@@ -37,7 +37,6 @@ public class TruckTurret : MonoBehaviour
     private Transform currentTarget;
     private Collider currentTargetCollider;
     private float fireTimer;
-    private float shootingAngle = 45f;
 
     [Header("Turret Stats")]
     public float _turretDamage;
@@ -222,21 +221,14 @@ public class TruckTurret : MonoBehaviour
             Vector3 targetDir = (targetPoint - muzzlePoint.position).normalized; 
             float angle = Vector3.Angle(muzzlePoint.forward, targetDir);
 
-            
-            if (angle < shootingAngle) 
-            {
-                fireTimer = 0f;
-                Debug.Log($"<color=cyan>{gameObject.name} firing at {currentTarget.name}. Angle difference: {angle:F2} degrees.</color>");
+           
+            fireTimer = 0f;
+            Debug.Log($"<color=cyan>{gameObject.name} firing at {currentTarget.name}. Angle difference: {angle:F2} degrees.</color>");
 
-                PlayMuzzleFlash();              // 1. Play Muzzle VFX
-                EjectCasing();                 // 2. Eject Casing
-                PerformHitscanShot(targetDir);// 3. Perform Hitscan
-            }
-            else
-            {
-                // Debug to see how close the angle is
-                Debug.Log($"<color=yellow>LOCKING:</color> Turret ready, but waiting for tighter lock. Angle: {angle:F2}");
-            }
+            PlayMuzzleFlash();              // 1. Play Muzzle VFX
+            EjectCasing();                 // 2. Eject Casing
+            PerformHitscanShot(targetDir);// 3. Perform Hitscan
+           
         }
     }
 
