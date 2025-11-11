@@ -153,6 +153,8 @@ public class EnemyHealth : MonoBehaviour
         GarbageItem garbageItem = corpseGO.AddComponent<GarbageItem>();
         garbageItem.Initialize(enemyData.garbageDataOnDeath);
 
+        garbageItem.destroyTarget = this.gameObject; 
+
         SphereCollider interactionCollider = corpseGO.AddComponent<SphereCollider>();
         interactionCollider.radius = coprseInteractionSphereSize;
         interactionCollider.isTrigger = true;

@@ -1,8 +1,7 @@
 ﻿using UnityEngine;
 using TMPro;
-using StarterAssets; // Make sure this is included if IInteractable is in this namespace
+using StarterAssets; 
 
-// You will need to define IInteractable somewhere, e.g.:
 
 
 public class GarbageItem : MonoBehaviour, IInteractable
@@ -20,6 +19,10 @@ public class GarbageItem : MonoBehaviour, IInteractable
     [SerializeField] private Vector3 desiredWorldScale = new Vector3(0.01f, 0.01f, 0.01f);
     [SerializeField] private Vector2 uiOffset = new Vector2(0f, 1f);
     [SerializeField] private float randomOffsetRange = 1f;
+
+    [Header("Cleanup")]
+    [Tooltip("If set, this object will be destroyed instead of the object this script is on. (Used for Enemy Corpses)")]
+    public GameObject destroyTarget; // 
 
     private GameObject _infoUIInstance;
     private TextMeshProUGUI _infoUIText;
@@ -125,11 +128,19 @@ public class GarbageItem : MonoBehaviour, IInteractable
         }
     }
 
-    
+
     public void NotifyCollected()
     {
-        // Now it's safe to destroy the GameObject
-        Destroy(gameObject);
+        if (destroyTarget != null)
+        {
+            // If a special target is set (like the Enemy root), destroy that.
+            Destroy(destroyTarget);
+        }
+        else
+        {
+            // Otherwise, do the default behavior (for all your other items).
+            Destroy(gameObject);
+        }
     }
 
     public GarbageData GetGarbageData()

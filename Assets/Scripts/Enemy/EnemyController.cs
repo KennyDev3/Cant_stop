@@ -9,6 +9,8 @@ public class EnemyController : MonoBehaviour
     public EnemyData enemyData;
     private NavMeshAgent agent;
     private Transform target;
+    public bool isPlayerPriorityEnemy;
+    public float playerPriorityChance = 0.666f;
 
     private Transform playerTarget;
     private Transform[] truckSideTargets; //  array for truck targets
@@ -25,6 +27,8 @@ public class EnemyController : MonoBehaviour
 
   void Start()
 {
+    isPlayerPriorityEnemy = Random.value < playerPriorityChance;
+
     agent = GetComponent<NavMeshAgent>();
     agent.speed = enemyData.moveSpeed;
 
@@ -129,9 +133,9 @@ public class EnemyController : MonoBehaviour
         }
     }
 
-    // 2. Check Truck Side Targets (We check the closest of the two sides)
-    if (truckSideTargets != null)
-    {
+        // 2. Check Truck Side Targets (We check the closest of the two sides)
+        if (!isPlayerPriorityEnemy && truckSideTargets != null)
+        {
         foreach (Transform sideTarget in truckSideTargets)
         {
             float distToSide = Vector3.Distance(myPosition, sideTarget.position);

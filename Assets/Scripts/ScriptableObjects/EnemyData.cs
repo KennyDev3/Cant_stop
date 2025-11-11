@@ -8,6 +8,7 @@ public class EnemyData : ScriptableObject
     public enum TargetType { Player, Truck }
 
     [Header("Behavior")]
+    public bool onlyAttackPlayer = false;
     public float visionRange = 20f;
     
      [Header("Stats")]
@@ -25,6 +26,8 @@ public class EnemyData : ScriptableObject
 
     [Header("Loot")]
     public GarbageData garbageDataOnDeath; 
+
+
 
 
 
