@@ -31,7 +31,10 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(float damageAmount)
     {
-        if (isDead) return;
+        if (isDead || (thirdPersonController != null && thirdPersonController.IsInvulnerable()))
+        {
+            return; 
+        }
 
         currentHealth -= damageAmount;
         Debug.Log("Player took " + damageAmount + " damage. Current HP: " + currentHealth);
