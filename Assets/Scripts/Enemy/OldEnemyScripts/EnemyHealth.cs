@@ -31,9 +31,17 @@ public class EnemyHealth : MonoBehaviour
     public float corpseCleanupTime = 10f;
 
 
-    // --- Cached Ragdoll Components for performance ---
+    //  Cached Ragdoll Components  
     private Rigidbody[] ragdollRigidbodies;
     private Collider[] ragdollColliders;
+
+    // Mesh Components for Hit Flash 
+    private SkinnedMeshRenderer _meshRenderer;
+    private MaterialPropertyBlock _propBlock;
+    private int _colorPropertyID;
+    private Coroutine _flashRoutine;
+
+    private float meshHitFlashDuration = 0.08f;
 
     [Header("Death Physics")]
     public float deathForceMultiplier = 150f;
@@ -44,11 +52,15 @@ public class EnemyHealth : MonoBehaviour
         enemyBrain = GetComponent<EnemyBrain>();
         navMeshAgent = GetComponent<NavMeshAgent>();
         enemyCollider = GetComponent<Collider>();
-        animator = GetComponentInChildren<Animator>(); // Assuming animator is on a child
+        animator = GetComponentInChildren<Animator>(); // Animator is on child
+        _meshRenderer = adventurerModel.GetComponentInChildren<SkinnedMeshRenderer>();
+
+        _propBlock = new MaterialPropertyBlock();
+        _colorPropertyID = Shader.PropertyToID("_EmissionColor");
 
         currentHealth = enemyData.maxHealth;
 
-        // --- OPTIMIZATION 1: Cache ragdoll components ---
+        // Optimized caching of Ragdoll components
         if (ragdollRootBone != null)
         {
             ragdollRigidbodies = ragdollRootBone.GetComponentsInChildren<Rigidbody>();
@@ -95,6 +107,8 @@ public class EnemyHealth : MonoBehaviour
         if (isDead) return;
 
         currentHealth -= damage;
+
+        StartFlash(meshHitFlashDuration);
         PlayHitEffect(hitPoint);
         healthBar.UpdateHealthBar(currentHealth, enemyData.maxHealth);
 
@@ -114,10 +128,8 @@ public class EnemyHealth : MonoBehaviour
         if (isDead) return;
         isDead = true;
 
-        // The health bar can be pooled instead of destroyed for even better performance
         if (healthBar != null) Destroy(healthBar.gameObject);
 
-        // --- OPTIMIZATION 3: Activate the ragdoll instead of handling components one by one ---
         SetRagdollState(true);
 
         // Disable core logic scripts
@@ -130,7 +142,6 @@ public class EnemyHealth : MonoBehaviour
             StartCoroutine(ActivateLootColliderDelayed(makeCorposeInteractableDelay));
         }
 
-        // --- OPTIMIZATION 4: Start the cleanup process ---
         StartCoroutine(CorpseCleanup());
     }
 
@@ -159,7 +170,6 @@ public class EnemyHealth : MonoBehaviour
         
     }
 
-    // No changes needed below this line
     private void PlayHitEffect(Vector3 position)
     {
         if (enemyData.bloodVFX != null)
@@ -184,5 +194,35 @@ public class EnemyHealth : MonoBehaviour
         interactionCollider.enabled = true;
 
         corpseGO.layer = LayerMask.NameToLayer("Interactable");
+    }
+
+    public void StartFlash(float duration)
+    {
+        if (_meshRenderer == null)
+        {
+            return;
+        }
+
+        if (_flashRoutine != null)
+        {
+            StopCoroutine(_flashRoutine);
+        }
+
+        // Start the new flash coroutine
+        _flashRoutine = StartCoroutine(FlashRoutine(duration));
+    }
+
+    private IEnumerator FlashRoutine(float duration)
+    {
+        _meshRenderer.GetPropertyBlock(_propBlock);
+
+        _propBlock.SetColor(_colorPropertyID, Color.white);
+        _meshRenderer.SetPropertyBlock(_propBlock);
+
+        yield return new WaitForSeconds(duration);
+
+        _propBlock.Clear();
+        _meshRenderer.SetPropertyBlock(_propBlock);
+        _flashRoutine = null;
     }
 }

@@ -61,8 +61,6 @@ public class RangeAttack : AttackBehaviour
 
     public override void AnimationEvent_EndAttack()
     {
-        // THIS IS THE MOST IMPORTANT LINE FOR DEBUGGING
-        Debug.Log("<color=lime>SUCCESS:</color> Ranged enemy AnimationEvent_EndAttack was called!", this.gameObject);
 
         IsAttacking = false;
 
