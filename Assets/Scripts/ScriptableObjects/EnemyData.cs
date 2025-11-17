@@ -19,7 +19,6 @@ public class EnemyData : ScriptableObject
     public float attackDamage = 10f;
     public float attackRange = 1.5f; // Melee range
     public float attackCooldown = 2f; // Time between 
-    public float attackAnimationDelay = 0.5f;
 
     [Header("Blood Splatter Particle FX")]
     public GameObject bloodVFX;

@@ -167,7 +167,12 @@ public class EnemyHealth : MonoBehaviour
             rb.isKinematic = true;
         }
 
-        
+        foreach (Collider col in ragdollColliders)
+        {
+            col.enabled = false;
+        }
+
+
     }
 
     private void PlayHitEffect(Vector3 position)
