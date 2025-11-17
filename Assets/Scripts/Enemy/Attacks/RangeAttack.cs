@@ -8,6 +8,8 @@ public class RangeAttack : AttackBehaviour
     [Tooltip("The transform where the projectile will be instantiated.")]
     public Transform projectileSpawnPoint;
 
+    public GameObject preAttackVFXPrefab;
+
     public override void Initialize(EnemyBrain brain)
     {
         base.Initialize(brain);
@@ -49,9 +51,17 @@ public class RangeAttack : AttackBehaviour
     // This can be called by an Animation Event to signal a pre-attack warning
     public void AnimationEvent_PreAttackBlink()
     {
-        // Implement your red blink logic here.
-        // For example, you could have a script on the enemy to flash a material color.
         Debug.Log("Enemy is about to fire!");
+
+        if (preAttackVFXPrefab != null)
+        {
+           
+            Instantiate(
+                preAttackVFXPrefab,
+                projectileSpawnPoint != null ? projectileSpawnPoint.position : transform.position,
+                Quaternion.identity
+            );
+        }
     }
 
     public override void AnimationEvent_StartAttack()
