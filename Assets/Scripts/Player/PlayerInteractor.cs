@@ -41,11 +41,9 @@ public class PlayerInteractor : MonoBehaviour
                 _input.interact = false;
             }
 
-            // We return here to skip the normal interaction logic below.
             return;
         }
 
-        // 3. NORMAL INTERACTION LOGIC (Only runs if the shop is closed)
 
         if (_input.interact)
         {
@@ -53,12 +51,10 @@ public class PlayerInteractor : MonoBehaviour
             {
                 _currentInteractable.Interact(this);
             }
-            // Consume Input for single press
             _input.interact = false;
         }
     }
 
-    // The rest of the methods remain unchanged.
     private void CheckForInteractable()
     {
         Collider[] colliders = Physics.OverlapSphere(transform.position, interactionDistance, interactableLayer);
