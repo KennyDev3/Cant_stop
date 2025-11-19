@@ -316,7 +316,7 @@ AnimatorState:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: WaveBossEnemyAttack
+  m_Name: JumpAttack
   m_Speed: 1.1
   m_CycleOffset: 0
   m_Transitions:
@@ -330,7 +330,7 @@ AnimatorState:
   m_MirrorParameterActive: 0
   m_CycleOffsetParameterActive: 0
   m_TimeParameterActive: 0
-  m_Motion: {fileID: 7400000, guid: 240272e2294b58741806eafc966cb785, type: 2}
+  m_Motion: {fileID: 7400000, guid: 098b0d0d062177e4689269b6a540b421, type: 2}
   m_Tag: 
   m_SpeedParameter: 
   m_MirrorParameter: 

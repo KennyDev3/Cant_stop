@@ -14,7 +14,10 @@ public class UIManager : MonoBehaviour
     public TextMeshProUGUI carryingCapacityText;
     public TextMeshProUGUI moneyText;
 
-     private void Start()
+    [Header("PickUpCooldown UI")]
+    public Slider pickupCooldownSlider;
+
+    private void Start()
     {
        
     }
@@ -50,6 +53,15 @@ public class UIManager : MonoBehaviour
         if (moneyText != null)
         {
             moneyText.text = $"$ {amount}";
+        }
+    }
+
+    public void UpdatePickupCooldown(float currentTime, float maxTime)
+    {
+        if (pickupCooldownSlider != null)
+        {
+            pickupCooldownSlider.maxValue = maxTime;
+            pickupCooldownSlider.value = currentTime;
         }
     }
 

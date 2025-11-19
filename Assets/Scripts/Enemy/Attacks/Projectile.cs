@@ -19,11 +19,9 @@ public class Projectile : MonoBehaviour
         }
 
         rb.useGravity = false;
-        // The key setting for manual movement:
         rb.isKinematic = true;
 
         SphereCollider sphereCollider = GetComponent<SphereCollider>();
-        // Ensure Collider exists
         if (sphereCollider != null)
         {
             sphereCollider.isTrigger = true;

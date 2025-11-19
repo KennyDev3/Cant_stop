@@ -48,7 +48,6 @@ public class RangeAttack : AttackBehaviour
         }
     }
 
-    // This can be called by an Animation Event to signal a pre-attack warning
     public void AnimationEvent_PreAttackBlink()
     {
         Debug.Log("Enemy is about to fire!");

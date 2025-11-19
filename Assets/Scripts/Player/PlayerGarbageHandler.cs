@@ -141,6 +141,25 @@ public class PlayerGarbageHandler : MonoBehaviour
         _currentItemToCollect = null;
     }
 
+
+    public bool TryInstantCollect(GarbageItem item) // Instant Area Pick up Logic
+    {
+        GarbageData data = item.GetGarbageData();
+
+        // 1. Check Strength
+        if (playerStrength < data.garbageTier)
+        {
+            Debug.Log("You are too weak to pick this item up");
+            return false;
+        }
+        AddGarbageToInventory(data);
+
+        // 3. Notify item to destroy itself
+        item.NotifyCollected();
+
+        return true;
+    }
+
     public int DropOffGarbage()
     {
         int totalValue = 0;

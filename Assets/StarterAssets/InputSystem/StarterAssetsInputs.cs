@@ -13,9 +13,10 @@ namespace StarterAssets
 		public bool jump;
 		public bool sprint;
 		public bool interact;
+        public bool pickUpGarbage;
 
 
-		[Header("Movement Settings")]
+        [Header("Movement Settings")]
 		public bool analogMovement;
 
 		[Header("Mouse Cursor Settings")]
@@ -51,10 +52,15 @@ namespace StarterAssets
 			InteractInput(value.isPressed);
 			Debug.Log("E has been pressed");
 		}
+
+        public void OnPickUpGarbage(InputValue value)
+        {
+            pickUpGarbage = value.isPressed;
+        }
 #endif
 
 
-		public void MoveInput(Vector2 newMoveDirection)
+        public void MoveInput(Vector2 newMoveDirection)
 		{
 			move = newMoveDirection;
 		} 
@@ -78,6 +84,12 @@ namespace StarterAssets
 		{
 			interact = newInteractState;
 		}
+
+		public void PikcUpGarbageInput(bool newpickUpGarbageState)
+		{
+            pickUpGarbage = newpickUpGarbageState;
+
+        }
 
 		private void OnApplicationFocus(bool hasFocus)
 		{
