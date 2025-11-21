@@ -72,9 +72,7 @@ public class PlayerGarbageHandler : MonoBehaviour
     // GARBAGE HANDLING LOGIC
     // ===================================
 
-    /// <summary>
     /// This is the main collection logic. It should ONLY be called by FinalizePickup.
-    /// </summary>
     private bool AddGarbageToInventory(GarbageData data)
     {
         _currentCapacity += data.capacityCost;
@@ -90,9 +88,7 @@ public class PlayerGarbageHandler : MonoBehaviour
         return true;
     }
 
-    /// <summary>
     /// Called by GarbageItem.Interact() to start the entire animation and collection process.
-    /// </summary>
     public bool StartPickupProcess(GarbageItem garbageItem)
     {
         GarbageData data = garbageItem.GetGarbageData();

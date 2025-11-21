@@ -9,7 +9,7 @@ public class TurretData : ScriptableObject
 
     [Header("Combat Stats")]
     public float damage = 100f;          // Damage per shot
-    public float fireRate = 0.5f;       // Time between shots (e.g., 0.5s = 2 shots/sec)
+    public float fireRate = 1;       // Base Attack speed
     public LayerMask enemyLayer;         // Layer to check for enemies (Crucial for performance)
 
     [Header("Visual/Audio Delays (Placeholder)")]

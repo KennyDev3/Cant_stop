@@ -6,6 +6,9 @@ public class TruckTurret : MonoBehaviour
 {
     public TurretData turretData;
 
+    [SerializeField] private StatController _stats;
+
+
     [Header("Turret Components")]
     // The part that rotates horizontally (e.g., the base or the whole gun mount)
     public Transform turretPivot;
@@ -43,10 +46,11 @@ public class TruckTurret : MonoBehaviour
     public float _turretFireRate;
 
 
+
+
     private void Awake()
     {
-        _turretDamage = turretData.damage;
-        _turretFireRate = turretData.fireRate;
+        
         Debug.Log(_turretDamage);
         Debug.Log(_turretFireRate);
     }
@@ -63,15 +67,20 @@ public class TruckTurret : MonoBehaviour
         {
             Debug.LogError("MuzzlePoint is not assigned on " + gameObject.name);
         }
-        
-        // CRUCIAL DEBUGGING HINT: If rotation is not working, 
-        // ensure turretPivot and muzzlePoint are correctly assigned.
+  
         if (turretPivot == null)
         {
             Debug.LogWarning("Turret Pivot not assigned. Turret will attempt to rotate based on its own transform, but alignment may be imperfect.");
         }
 
-       
+        // Intitialize stats 
+        if (_stats != null && turretData != null)
+        {
+            _stats.InitializeStat(StatType.Damage, turretData.damage);
+            _stats.InitializeStat(StatType.FireRate, turretData.fireRate);
+        }
+
+
     }
 
     void Update()
@@ -87,7 +96,7 @@ public class TruckTurret : MonoBehaviour
         // 2. If a target is found, lock and shoot
         if (currentTarget != null)
         {
-            // NEW LOGICAL CHECK: If the target is no longer valid, drop it and find a new one.
+            // If the target is no longer valid, drop it and find a new one.
             if (!IsTargetStillValid())
             {
                 // The reason for target loss is now logged inside IsTargetStillValid()
@@ -100,7 +109,7 @@ public class TruckTurret : MonoBehaviour
         }
     }
     
-    // NEW: Centralized logic to check if the current target is still a threat, with debug logging for failure.
+    //  Centralized logic to check if the current target is still a threat
     private bool IsTargetStillValid()
     {
         // 1. Safety check
@@ -111,7 +120,6 @@ public class TruckTurret : MonoBehaviour
             return false;
         }
         
-        // 2. Check for Death/Garbage State (Priority Check)
         // If the target has the GarbageItem component, it is officially dead and invalid.
         if (currentTarget.GetComponent<GarbageItem>() != null)
         {
@@ -120,7 +128,7 @@ public class TruckTurret : MonoBehaviour
             return false;
         }
         
-        // 3. Check for EnemyHealth status (If it's not garbage, but the script is disabled, it's also dead)
+        // Check for EnemyHealth status (If it's not garbage, but the script is disabled, it's also dead)
         EnemyHealth targetHealth = currentTarget.GetComponent<EnemyHealth>();
         
         if (targetHealth == null) 
@@ -144,7 +152,7 @@ public class TruckTurret : MonoBehaviour
             return false;
         }
 
-        // 4. Check if the target is out of range
+        // Check if the target is out of range
         if (Vector3.Distance(transform.position, currentTarget.position) > turretData.targetRange)
         {
             Debug.Log($"<color=yellow>TARGET DROPPED:</color> {currentTarget.name} is out of range ({Vector3.Distance(transform.position, currentTarget.position):F1}m).");
@@ -213,7 +221,12 @@ public class TruckTurret : MonoBehaviour
 
     private void TryShoot()
     {
-        if (fireTimer >= _turretFireRate)
+        float shotsPerSecond = _stats ? _stats.GetStat(StatType.FireRate) : turretData.fireRate;
+
+        if (shotsPerSecond <= 0.001f) shotsPerSecond = 0.001f; // Prevent dividing by 0
+        float timeBetweenShots = 1.0f / shotsPerSecond;
+
+        if (fireTimer >= timeBetweenShots)
         {
             if (currentTargetCollider == null) return;
 
@@ -290,18 +303,7 @@ public class TruckTurret : MonoBehaviour
 
 
 
-    public void IncreaseTurretDamage(float increaseAmount)
-    {
-        _turretDamage += increaseAmount;
-      
-    }
-
-    public void IncreaseTurretFireRate(float increaseAmount)
-    {
-        _turretFireRate -= increaseAmount;
-        Debug.Log(_turretFireRate);
-    }
-
+   
     
     private void OnDrawGizmosSelected()
     {

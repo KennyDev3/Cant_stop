@@ -1,6 +1,7 @@
+using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public class UIManager : MonoBehaviour
 {
@@ -16,6 +17,15 @@ public class UIManager : MonoBehaviour
 
     [Header("PickUpCooldown UI")]
     public Slider pickupCooldownSlider;
+
+    [Header("Item Display Config")]
+    [SerializeField] private GameObject itemSlotPrefab; 
+    [SerializeField] private Transform itemContainer;
+
+    // Dictionary to map Data (ItemSO) to Visuals (ItemSlotUI)
+
+    private Dictionary<ItemSO, ItemSlotUI> _itemSlots = new Dictionary<ItemSO, ItemSlotUI>();
+
 
     private void Start()
     {
@@ -62,6 +72,28 @@ public class UIManager : MonoBehaviour
         {
             pickupCooldownSlider.maxValue = maxTime;
             pickupCooldownSlider.value = currentTime;
+        }
+    }
+
+    public void UpdateItemDisplay(ItemSO item, int totalCount)
+    {
+        // Check if Item already exists in UI
+        if (_itemSlots.ContainsKey(item))
+        {
+            // UPDATE EXISTING
+            _itemSlots[item].UpdateCount(totalCount);
+        }
+        else
+        {
+            // CREATE NEW
+            GameObject newSlotObj = Instantiate(itemSlotPrefab, itemContainer);
+            ItemSlotUI newSlotScript = newSlotObj.GetComponent<ItemSlotUI>();
+
+            if (newSlotScript != null)
+            {
+                newSlotScript.Initialize(item, totalCount);
+                _itemSlots.Add(item, newSlotScript);
+            }
         }
     }
 
