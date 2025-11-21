@@ -128,18 +128,7 @@ public class UpgradeHandler : MonoBehaviour
                     thirdPersonController.UpgradePlayerSpeed(definition.valuePerLevel);
                 }
                 break;
-            case UpgradeType.TurretDamage:
-                if (truckTurret != null)
-                {
-                    truckTurret.IncreaseTurretDamage(definition.valuePerLevel);
-                }
-                break;
-            case UpgradeType.TurretFireRate:
-                if (truckTurret != null)
-                {
-                    truckTurret.IncreaseTurretFireRate(definition.valuePerLevel);
-                }
-                break;
+            
 
             case UpgradeType.PlayerStrength:
                 if (playerGarbageHandler != null)

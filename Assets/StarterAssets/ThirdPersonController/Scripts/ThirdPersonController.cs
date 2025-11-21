@@ -24,6 +24,8 @@ namespace StarterAssets
 
     public class ThirdPersonController : MonoBehaviour
     {
+        [SerializeField] private StatController _stats;
+
         [Header("Player")]
         [Tooltip("Move speed of the character in m/s")]
         public float MoveSpeed = 2.0f;
@@ -170,6 +172,12 @@ namespace StarterAssets
 
         private void Start()
         {
+            if (_stats != null)
+            {
+                _stats.InitializeStat(StatType.MoveSpeed, MoveSpeed);
+                _stats.InitializeStat(StatType.SprintSpeed, SprintSpeed);
+            }
+
             _playerLayer = gameObject.layer;
 
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
@@ -304,20 +312,22 @@ namespace StarterAssets
 
         private void Move()
         {
+            float currentMoveSpeed = _stats ? _stats.GetStat(StatType.MoveSpeed) : MoveSpeed;
+
+            float sprintMultiplier = SprintSpeed / MoveSpeed; 
+            float currentSprintSpeed = currentMoveSpeed * sprintMultiplier;
+
             float targetSpeed;
             bool isOverencumbered = _playerGarbageHandler != null && _playerGarbageHandler.IsOverencumbered;
 
-            // set target speed based on player state (overencumbered or not)
             if (isOverencumbered)
             {
-                // Player is overencumbered: speed is halved, no sprinting allowed.
-                targetSpeed = MoveSpeed / 2f;
+                targetSpeed = currentMoveSpeed / 2f;
             }
             else
             {
-                // Player is not overencumbered: normal speed and sprint logic applies.
                 bool canSprint = _playerStamina != null ? _playerStamina.CanSprint() : true;
-                targetSpeed = _input.sprint && canSprint ? SprintSpeed : MoveSpeed;
+                targetSpeed = _input.sprint && canSprint ? currentSprintSpeed : currentMoveSpeed;
             }
 
 
