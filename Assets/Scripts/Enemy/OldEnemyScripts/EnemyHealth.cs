@@ -22,6 +22,10 @@ public class EnemyHealth : MonoBehaviour
     private float coprseInteractionSphereSize = 0.006f;
     private float particleEffectDestroyTime = 3f;
 
+    [Header("Damage Text Settings")]
+    [Tooltip("How high above the hit point the text should appear. Increase this for tall enemies.")]
+    public float damageTextOffsetY = 0f; //
+
     [Header("Ragdoll Setup")]
     [Tooltip("The root of the ragdoll hierarchy (usually the Hips bone).")]
     public Transform ragdollRootBone;
@@ -115,6 +119,10 @@ public class EnemyHealth : MonoBehaviour
     {
         if (isDead) return;
 
+        bool isCrit = damage > 150;
+
+        Vector3 textSpawnPos = hitPoint + (Vector3.up * damageTextOffsetY);
+        DamageTextManager.Instance.ShowDamage(damage, textSpawnPos, isCrit);
         currentHealth -= damage;
 
         StartFlash(meshHitFlashDuration);
