@@ -101,7 +101,16 @@ public class EnemyHealth : MonoBehaviour
         }
     }
 
+    // For AOE and non Turret damage
+    public void TakeDamage(float damage) 
+    {
+        // This assumes where center of mass is, might be inaccurate in the future
 
+        Vector3 centerMass = transform.position + (Vector3.up * 1.0f);
+        TakeDamage(damage, centerMass);
+    }
+
+    // For turret / Direct hits
     public void TakeDamage(float damage, Vector3 hitPoint)
     {
         if (isDead) return;

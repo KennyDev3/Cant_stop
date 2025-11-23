@@ -28,6 +28,12 @@ public class StatController : MonoBehaviour
             stat.currentValue = stat.baseValue;
             _statDict.Add(stat.type, stat);
         }
+
+        // Safety: Ensure Global Multiplier exists and is at least 1.0
+        if (!_statDict.ContainsKey(StatType.GlobalDamageMultiplier))
+        {
+            InitializeStat(StatType.GlobalDamageMultiplier, 1.0f);
+        }
     }
 
     public void InitializeStat(StatType type, float baseValue)

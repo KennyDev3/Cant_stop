@@ -1,13 +1,17 @@
-using UnityEngine;
+using System;
 using System.Collections;
+using UnityEngine;
+
+using Random = UnityEngine.Random; // Differentiate Randoms
 
 
-public class TruckTurret : MonoBehaviour
+public class TruckTurret : MonoBehaviour, IStatReceiver
 {
     public TurretData turretData;
 
     [SerializeField] private StatController _stats;
 
+    private float _currentDamage;
 
     [Header("Turret Components")]
     // The part that rotates horizontally (e.g., the base or the whole gun mount)
@@ -45,6 +49,9 @@ public class TruckTurret : MonoBehaviour
     public float _turretDamage;
     public float _turretFireRate;
 
+    public static event Action<Vector3, Vector3> OnTurretShoot;
+
+
 
 
 
@@ -79,6 +86,9 @@ public class TruckTurret : MonoBehaviour
             _stats.InitializeStat(StatType.Damage, turretData.damage);
             _stats.InitializeStat(StatType.FireRate, turretData.fireRate);
         }
+
+        OnStatsRecalculated();
+
 
 
     }
@@ -241,8 +251,25 @@ public class TruckTurret : MonoBehaviour
             PlayMuzzleFlash();              // 1. Play Muzzle VFX
             EjectCasing();                 // 2. Eject Casing
             PerformHitscanShot(targetDir);// 3. Perform Hitscan
-           
+
+
+
+
         }
+    }
+
+    public void OnStatsRecalculated()
+    {
+        // Get base damage from stats 
+        float baseDmg = _stats != null ? _stats.GetStat(StatType.Damage) : turretData.damage;
+
+        //  Get Global Multiplier
+        float globalMult = _stats != null ? _stats.GetStat(StatType.GlobalDamageMultiplier) : 1.0f;
+
+        // 3. Store Final
+        _currentDamage = baseDmg * globalMult;
+
+        Debug.Log($"Turret Damage Updated: {_currentDamage}");
     }
 
     private void PerformHitscanShot(Vector3 direction)
@@ -255,7 +282,10 @@ public class TruckTurret : MonoBehaviour
 
         if (Physics.Raycast(muzzlePoint.position, direction, out hit, turretData.targetRange, turretData.enemyLayer))
         {
-            trailEndPoint = hit.point; 
+            trailEndPoint = hit.point;
+
+            OnTurretShoot?.Invoke(muzzlePoint.position, hit.point); // Invoke Event
+
 
             Vector3 randomOffset = new Vector3(
                 Random.Range(-maxHitDeviation, maxHitDeviation), // X-axis (side-to-side)
@@ -277,8 +307,8 @@ public class TruckTurret : MonoBehaviour
             EnemyHealth enemyHealth = hit.collider.GetComponent<EnemyHealth>();
             if (enemyHealth != null)
             {
-                enemyHealth.TakeDamage(_turretDamage, deviatedPoint);
-                Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{turretData.damage} damage</color>. Hit deviated by up to {maxHitDeviation:F2}m.");
+                enemyHealth.TakeDamage(_currentDamage, deviatedPoint);
+                Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{_currentDamage} damage</color>. Hit deviated by up to {maxHitDeviation:F2}m.");
             }
             else
             {
@@ -289,6 +319,7 @@ public class TruckTurret : MonoBehaviour
         {
             
             trailEndPoint = muzzlePoint.position + direction * turretData.targetRange;
+
 
             // Your existing miss logic
             Debug.DrawRay(muzzlePoint.position, direction * turretData.targetRange, Color.yellow, 0.5f);
