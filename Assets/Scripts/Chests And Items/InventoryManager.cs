@@ -4,6 +4,21 @@ using System.Collections.Generic;
 
 public class InventoryManager : MonoBehaviour
 {
+    // Debugger to help spawn with items
+    [System.Serializable]
+    public struct DebugItemEntry
+    {
+        public ItemSO item;
+        [Min(1)] public int count;
+    }
+
+    [Header("Debugging")]
+    [SerializeField] private List<DebugItemEntry> startingItems;
+
+
+    //
+
+
     private Dictionary<ItemSO, int> _inventory = new Dictionary<ItemSO, int>();
 
     // References to the entities that get buffed
@@ -14,7 +29,41 @@ public class InventoryManager : MonoBehaviour
     private void Start()
     {
         _uiManager = FindFirstObjectByType<UIManager>();
+
+        // Spawn with added Items
+        if (startingItems != null && startingItems.Count > 0)
+        {
+            ProcessStartingItems();
+        }
+
+
     }
+
+    // ================================================================ DEBUGGING
+    // Process the list from the inspector
+    private void ProcessStartingItems()
+    {
+        foreach (var entry in startingItems)
+        {
+            if (entry.item == null) continue;
+
+            // Add directly to the internal dictionary
+            if (_inventory.ContainsKey(entry.item))
+                _inventory[entry.item] += entry.count;
+            else
+                _inventory.Add(entry.item, entry.count);
+
+            Debug.Log($"<color=yellow>DEBUG LOAD:</color> Added {entry.count}x {entry.item.itemName}");
+
+            // Sync UI
+            if (_uiManager != null)
+                _uiManager.UpdateItemDisplay(entry.item, _inventory[entry.item]);
+        }
+
+       
+        RecalculateAllStats();
+    }
+    // ================================================================ DEBUGGING
 
     public void AddItem(ItemSO item)
     {
@@ -50,29 +99,36 @@ public class InventoryManager : MonoBehaviour
 
     private void RecalculateAllStats()
     {
-        // Reset to base values
         if (playerStats) playerStats.ResetStats();
         if (turretStats) turretStats.ResetStats();
 
-        // Re-apply all items
         foreach (var entry in _inventory)
         {
             ItemSO item = entry.Key;
             int stack = entry.Value;
 
-            // Distribute effects based on ItemTarget
             if (item.target == ItemTarget.Player || item.target == ItemTarget.Both)
-            {
                 if (playerStats) item.ApplyEffect(playerStats, stack);
-            }
 
             if (item.target == ItemTarget.Turret || item.target == ItemTarget.Both)
-            {
                 if (turretStats) item.ApplyEffect(turretStats, stack);
-            }
         }
 
-        // UI events and updates can go here, display items for Player
+        
+
+        if (playerStats)
+        {
+            // Find all scripts on the player that care about stats (OrbController, Aura, etc)
+            var receivers = playerStats.GetComponents<IStatReceiver>();
+            foreach (var receiver in receivers) receiver.OnStatsRecalculated();
+        }
+
+        if (turretStats)
+        {
+            // Find all scripts on the turret (TruckTurret)
+            var receivers = turretStats.GetComponents<IStatReceiver>();
+            foreach (var receiver in receivers) receiver.OnStatsRecalculated();
+        }
     }
 
 

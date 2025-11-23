@@ -99,6 +99,7 @@ namespace StarterAssets
 
         // ------------------ DECOUPLED EVENT ------------------
         public event Action OnPickupAnimationComplete;
+        public event Action<Vector3> OnDashStart;
         // -----------------------------------------------------
 
         // cinemachine
@@ -176,6 +177,8 @@ namespace StarterAssets
             {
                 _stats.InitializeStat(StatType.MoveSpeed, MoveSpeed);
                 _stats.InitializeStat(StatType.SprintSpeed, SprintSpeed);
+                _stats.InitializeStat(StatType.DashDuration, DashDuration);
+
             }
 
             _playerLayer = gameObject.layer;
@@ -428,7 +431,11 @@ namespace StarterAssets
                 dashDirection = Quaternion.Euler(0.0f, targetAngle, 0.0f) * Vector3.forward;
             }
 
-            while (Time.time < startTime + DashDuration)
+            OnDashStart?.Invoke(dashDirection); // Announace event
+
+            float currentDuration = _stats ? _stats.GetStat(StatType.DashDuration) : DashDuration;
+
+            while (Time.time < startTime + currentDuration)
             {
                 
                 Vector3 horizontalMovement = dashDirection.normalized * (DashSpeed * Time.deltaTime);

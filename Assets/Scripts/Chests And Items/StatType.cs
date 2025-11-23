@@ -8,6 +8,10 @@ public enum StatType
     DamageMultiplier,
     Damage,
     FireRate,
+    AreaMultiplier,
+    GlobalDamageMultiplier, // Apllies extra damage to ALL items
+    DashDuration,
+
 
     // Add more here later
 }
