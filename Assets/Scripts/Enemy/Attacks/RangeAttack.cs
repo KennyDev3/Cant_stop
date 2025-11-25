@@ -2,17 +2,24 @@ using UnityEngine;
 
 public class RangeAttack : AttackBehaviour
 {
-    [Tooltip("The Scriptable Object holding data for this ranged enemy.")]
-    public RangedEnemyData rangedEnemyData;
+    private RangedEnemyData _rangedData; // Injected
 
     [Tooltip("The transform where the projectile will be instantiated.")]
     public Transform projectileSpawnPoint;
-
     public GameObject preAttackVFXPrefab;
 
-    public override void Initialize(EnemyBrain brain)
+    public override void Initialize(EnemyBrain brain, EnemyData data)
     {
-        base.Initialize(brain);
+        base.Initialize(brain, data);
+
+        if (data is RangedEnemyData castedData)
+        {
+            _rangedData = castedData;
+        }
+        else
+        {
+            Debug.LogError($"RangeAttack on {gameObject.name} requires RangedEnemyData!");
+        }
     }
 
     public override void PerformAttack(Transform target)
@@ -23,18 +30,20 @@ public class RangeAttack : AttackBehaviour
 
     public void AnimationEvent_FireProjectile()
     {
+        if (_rangedData == null || projectileSpawnPoint == null) return;
+
         Transform target = enemyBrain.Target;
 
-        if (projectileSpawnPoint != null && rangedEnemyData.projectilePrefab != null && target != null)
+        if (_rangedData.projectilePrefab != null && target != null)
         {
             Vector3 targetDirection = target.position - projectileSpawnPoint.position;
-            targetDirection.y = 0; // No Y rotation to keep projectile perallel to the ground 
+            targetDirection.y = 0;
             targetDirection = targetDirection.normalized;
 
             Quaternion projectileRotation = Quaternion.LookRotation(targetDirection);
 
             GameObject projectileGO = Instantiate(
-                rangedEnemyData.projectilePrefab,
+                _rangedData.projectilePrefab,
                 projectileSpawnPoint.position,
                 projectileRotation
             );
@@ -43,18 +52,15 @@ public class RangeAttack : AttackBehaviour
 
             if (projectile != null)
             {
-                projectile.Initialize(rangedEnemyData.attackDamage, rangedEnemyData.projectileSpeed);
+                projectile.Initialize(_rangedData.attackDamage, _rangedData.projectileSpeed);
             }
         }
     }
 
     public void AnimationEvent_PreAttackBlink()
     {
-        Debug.Log("Enemy is about to fire!");
-
         if (preAttackVFXPrefab != null)
         {
-           
             Instantiate(
                 preAttackVFXPrefab,
                 projectileSpawnPoint != null ? projectileSpawnPoint.position : transform.position,
@@ -70,11 +76,8 @@ public class RangeAttack : AttackBehaviour
 
     public override void AnimationEvent_EndAttack()
     {
-
         IsAttacking = false;
-
         enemyBrain.Animator.SetTrigger("AttackFinished");
-
         enemyBrain.ResetAttackTimer();
         enemyBrain.OnAttackFinished();
         enemyBrain.ResumeMovement();

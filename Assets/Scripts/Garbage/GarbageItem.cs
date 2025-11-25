@@ -1,150 +1,148 @@
 ﻿using UnityEngine;
 using TMPro;
-using StarterAssets; 
-
-
+using System;
+using StarterAssets;
 
 public class GarbageItem : MonoBehaviour, IInteractable
 {
+    public event Action<GarbageItem> OnCollected;
+
     [Header("Data")]
-    [SerializeField] private GarbageData garbageData; // Assign your ScriptableObject here
+    [SerializeField] private GarbageData garbageData;
 
-    [Header("Animation")]
-    [Tooltip("The duration of the PLAYER'S pickup animation")]
-    public float playerAnimationDuration = 1.0f;
+    [Header("Pooling")]
+    [Tooltip("TRUE for Enemies (Hidden until death). FALSE for Static Trash (Always visible).")]
+    public bool isPooledObject = false;
 
-    [Header("UI Feedback")]
+    [SerializeField] private string interactableLayerName = "Interactable";
+
+    [Header("References")]
+    [SerializeField] private Outline targetOutline;
+    [SerializeField] private Collider interactionCollider;
+    [SerializeField] private GameObject destroyTarget;
     [SerializeField] private GameObject infoUIPrefab;
-    [SerializeField] private float uiAnimationDuration = 0.15f;
-    [SerializeField] private Vector3 desiredWorldScale = new Vector3(0.01f, 0.01f, 0.01f);
-    [SerializeField] private Vector2 uiOffset = new Vector2(0f, 1f);
-    [SerializeField] private float randomOffsetRange = 1f;
 
-    [Header("Cleanup")]
-    [Tooltip("If set, this object will be destroyed instead of the object this script is on. (Used for Enemy Corpses)")]
-    public GameObject destroyTarget; // 
-
+    private int _originalLayer;
+    private int _interactableLayerIndex;
     private GameObject _infoUIInstance;
     private TextMeshProUGUI _infoUIText;
-    private Vector3 _targetLocalScale = Vector3.zero;
-    private Outline _outline; 
 
-    void Awake()
+    private void Awake()
     {
-        _outline = GetComponent<Outline>();
-        if (_outline == null)
-        {
-            Debug.LogWarning("Outline component missing from GarbageItem.", this);
-        }
-        else
-        {
-            _outline.OutlineColor = Color.white;
-            _outline.enabled = true;
-        }
+        _interactableLayerIndex = LayerMask.NameToLayer(interactableLayerName);
+        _originalLayer = gameObject.layer;
 
+        // UI Setup
         if (infoUIPrefab != null)
         {
             _infoUIInstance = Instantiate(infoUIPrefab, transform.position, Quaternion.identity, transform);
-            float randomX = Random.Range(-randomOffsetRange, randomOffsetRange);
-            _infoUIInstance.transform.localPosition = new Vector3(uiOffset.x + randomX, uiOffset.y, 0f);
-
-            Vector3 parentScale = transform.localScale;
-            _targetLocalScale.x = desiredWorldScale.x / parentScale.x;
-            _targetLocalScale.y = desiredWorldScale.y / parentScale.y;
-            _targetLocalScale.z = desiredWorldScale.z / parentScale.z;
-
             _infoUIText = _infoUIInstance.GetComponentInChildren<TextMeshProUGUI>();
-            _infoUIInstance.transform.localScale = Vector3.zero;
+            _infoUIInstance.SetActive(false);
+        }
+
+        if (isPooledObject)
+        {
+            
+            if (interactionCollider != null) interactionCollider.enabled = false;
+            if (targetOutline != null) targetOutline.enabled = false; 
+            this.enabled = false;
+        }
+        else
+        {
+           
+            if (interactionCollider != null) interactionCollider.enabled = true;
+            if (targetOutline != null)
+            {
+                targetOutline.enabled = true; // Always on
+                targetOutline.OutlineColor = Color.white;
+            }
+            this.enabled = true;
         }
     }
 
-    public void Initialize(GarbageData data)
+    // Called by EnemyHealth when dead
+    public void ActivatePooledInteractable(GarbageData newData)
     {
-        garbageData = data;
+        garbageData = newData;
+        _originalLayer = gameObject.layer;
+
+        // Change layer so Raycast can hit the Hips
+        gameObject.layer = _interactableLayerIndex;
+
+        if (interactionCollider != null) interactionCollider.enabled = true;
+
+       
+
+        this.enabled = true;
     }
 
-    public string GetInteractionPrompt()
+    public void ResetPooledInteractable()
     {
-        return $"Press E to pick up {garbageData.itemName}";
+        gameObject.layer = _originalLayer;
+
+        if (interactionCollider != null) interactionCollider.enabled = false;
+
+        if (targetOutline != null) targetOutline.enabled = false;
+        if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
+
+        this.enabled = false;
     }
 
-    
     public void Interact(PlayerInteractor interactor)
     {
         var garbageHandler = interactor.GetComponent<PlayerGarbageHandler>();
-        if (garbageHandler == null)
+
+        if (garbageHandler != null && garbageHandler.StartPickupProcess(this))
         {
-            Debug.LogError("Player is missing PlayerGarbageHandler component!");
-            return;
+            if (interactionCollider != null) interactionCollider.enabled = false;
+            if (targetOutline != null) targetOutline.enabled = false;
+            if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
         }
+    }
 
-        // 1. Tell the coordinator (Handler) to start the pickup process.
-        if (garbageHandler.StartPickupProcess(this))
+    public void NotifyCollected()
+    {
+        if (isPooledObject)
         {
-            // 2. If the handler confirmed the process started (e.g., player is strong enough),
-            //    disable this item's visuals and collider so it can't be interacted with again.
-            if (_outline != null) _outline.enabled = false;
-            GetComponent<Collider>().enabled = false;
-
-            // Hide the floating UI
-            if (_infoUIInstance != null)
-            {
-                // Assumes LeanTween is in the project. If not, just disable the object.
-                LeanTween.cancel(_infoUIInstance);
-                LeanTween.scale(_infoUIInstance, Vector3.zero, uiAnimationDuration).setEaseInBack();
-                _infoUIInstance.SetActive(false);
-            }
+            OnCollected?.Invoke(this);
+        }
+        else
+        {
+            if (destroyTarget != null) Destroy(destroyTarget);
+            else Destroy(gameObject);
         }
     }
 
     public void Highlight()
     {
-        if (_outline != null)
+        if (targetOutline != null)
         {
-            _outline.OutlineColor = Color.yellow;
+            targetOutline.enabled = true;
+            targetOutline.OutlineColor = Color.yellow;
         }
 
-        if (_infoUIInstance != null)
-        {
-            _infoUIText.text = $"Weight: {garbageData.capacityCost}\nWorth: ${garbageData.value}";
-            _infoUIInstance.SetActive(true);
-            LeanTween.cancel(_infoUIInstance);
-            LeanTween.scale(_infoUIInstance, _targetLocalScale, uiAnimationDuration).setEaseOutBack();
-        }
+        if (_infoUIInstance != null) _infoUIInstance.SetActive(true);
+        if (garbageData != null && _infoUIText != null) _infoUIText.text = $"{garbageData.itemName}";
     }
 
     public void Unhighlight()
     {
-        if (_outline != null)
+        if (targetOutline != null)
         {
-            _outline.OutlineColor = Color.white;
+            if (isPooledObject)
+            {
+                targetOutline.enabled = false;
+            }
+            else
+            {
+                targetOutline.OutlineColor = Color.white;
+                targetOutline.enabled = true;
+            }
         }
 
-        if (_infoUIInstance != null)
-        {
-            _infoUIInstance.SetActive(false);
-            LeanTween.cancel(_infoUIInstance);
-            LeanTween.scale(_infoUIInstance, Vector3.zero, uiAnimationDuration).setEaseInBack();
-        }
+        if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
     }
 
-
-    public void NotifyCollected()
-    {
-        if (destroyTarget != null)
-        {
-            // If a special target is set (like the Enemy root), destroy that.
-            Destroy(destroyTarget);
-        }
-        else
-        {
-            // Otherwise, do the default behavior (for all your other items).
-            Destroy(gameObject);
-        }
-    }
-
-    public GarbageData GetGarbageData()
-    {
-        return garbageData;
-    }
+    public string GetInteractionPrompt() => $"Pick up {garbageData?.itemName}";
+    public GarbageData GetGarbageData() => garbageData;
 }
