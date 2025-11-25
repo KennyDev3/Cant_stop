@@ -2,50 +2,55 @@ using UnityEngine;
 
 public class BombThrowerAttack : AttackBehaviour
 {
+    private BombThrowerEnemyData _bombData; // Injected
 
-    [Tooltip("The Scriptable Object holding data for this bomb-throwing enemy.")]
-    public BombThrowerEnemyData bombThrowerData;
-
-    [Tooltip("The transform where the bomb will be instantiated (e.g., the enemy's hand).")]
+    [Tooltip("The transform where the bomb will be instantiated.")]
     public Transform launchPoint;
-
-    [Tooltip("A VFX to play before the bomb is thrown to warn the player.")]
     public GameObject preAttackVFXPrefab;
 
-    public override void Initialize(EnemyBrain brain)
+    public override void Initialize(EnemyBrain brain, EnemyData data)
     {
-        base.Initialize(brain);
+        base.Initialize(brain, data);
+
+        if (data is BombThrowerEnemyData castedData)
+        {
+            _bombData = castedData;
+        }
+        else
+        {
+            Debug.LogError($"BombThrowerAttack on {gameObject.name} requires BombThrowerEnemyData!");
+        }
     }
+
     public override void PerformAttack(Transform target)
     {
         IsAttacking = true;
-        // This triggers the throwing animation, which will then call our animation events.
         enemyBrain.Animator.SetTrigger("Attack");
     }
 
     public void AnimationEvent_LobBomb()
     {
-        Transform target = enemyBrain.Target;
+        if (_bombData == null || launchPoint == null) return;
 
-        if (launchPoint != null && bombThrowerData.bombPrefab != null && target != null)
+        Transform target = enemyBrain.Target;
+        if (target == null) return;
+
+        if (_bombData.bombPrefab != null)
         {
-            // --- Instantiate and get components ---
             GameObject bombInstance = Instantiate(
-                bombThrowerData.bombPrefab,
+                _bombData.bombPrefab,
                 launchPoint.position,
-                Quaternion.identity // Bombs typically don't need to face the target when thrown
+                Quaternion.identity
             );
 
             BombController bombController = bombInstance.GetComponent<BombController>();
             Rigidbody bombRb = bombInstance.GetComponent<Rigidbody>();
 
-            // --- Initialize the bomb with damage ---
             if (bombController != null)
             {
-                bombController.Initialize(bombThrowerData.attackDamage);
+                bombController.Initialize(_bombData.attackDamage);
             }
 
-            // --- Calculate and apply the lob velocity ---
             if (bombRb != null)
             {
                 Vector3 launchVelocity = CalculateLaunchVelocity(target);
@@ -89,7 +94,7 @@ public class BombThrowerAttack : AttackBehaviour
         Vector3 startPosition = launchPoint.position;
         Vector3 targetPosition = target.position;
         float gravity = Physics.gravity.y;
-        float angleRad = bombThrowerData.launchAngle * Mathf.Deg2Rad;
+        float angleRad = _bombData.launchAngle * Mathf.Deg2Rad;
 
         Vector3 displacementXZ = new Vector3(targetPosition.x - startPosition.x, 0, targetPosition.z - startPosition.z);
         float distance = displacementXZ.magnitude;
@@ -98,13 +103,10 @@ public class BombThrowerAttack : AttackBehaviour
 
         if (float.IsNaN(velocity))
         {
-            velocity = 5f; 
-            Debug.LogWarning("Could not calculate a valid launch velocity. Using fallback.", this);
+            velocity = 5f;
         }
 
         Vector3 launchDirection = (displacementXZ.normalized + Vector3.up * Mathf.Tan(angleRad)).normalized;
         return launchDirection * velocity;
     }
-
-
 }

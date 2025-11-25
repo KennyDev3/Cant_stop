@@ -1,5 +1,6 @@
 // MeleeAttack.cs
 using UnityEngine;
+using UnityEngine.Playables;
 using static UnityEngine.Rendering.DebugUI;
 
 public class MeleeAttack : AttackBehaviour
@@ -8,6 +9,8 @@ public class MeleeAttack : AttackBehaviour
     public Collider damageCollider;
     private float cachedAttackDamage;
     private bool hasHit;
+
+    private EnemyData _enemyData;
 
     void Start()
     {
@@ -28,10 +31,18 @@ public class MeleeAttack : AttackBehaviour
 
     }
 
-    public override void Initialize(EnemyBrain brain)
+    public override void Initialize(EnemyBrain brain, EnemyData data)
     {
-        base.Initialize(brain);
-        cachedAttackDamage = enemyBrain.enemyData.attackDamage;
+        base.Initialize(brain, data);
+
+        if (data is EnemyData castedData)
+        {
+            _enemyData = castedData;
+        }
+        else
+        {
+            Debug.LogError($"GroundAOEAttack on {gameObject.name} requires EnemyData!");
+        }
     }
 
     public override void PerformAttack(Transform target)

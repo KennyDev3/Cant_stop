@@ -3,21 +3,28 @@ using UnityEngine;
 
 public class GroundAOEAttack : AttackBehaviour
 {
-    [Tooltip("The Scriptable Object holding data for this Flame AOE enemy.")]
-    public FlameAOEEnemyData flameAOEEnemyData;
+    private FlameAOEEnemyData _flameData; // Injected
 
     [Header("AOE Settings")]
-    public int burstCount = 3;      
+    public int burstCount = 3;
     public float timeBetweenBursts = 0.5f;
 
-    [Header("Targeting (The Donut)")]
-    public float minRadiusFromPlayer = 2.0f; // Inner circle 
-    public float maxRadiusFromPlayer = 5.0f; // Outer circle 
+    [Header("Targeting")]
+    public float minRadiusFromPlayer = 2.0f;
+    public float maxRadiusFromPlayer = 5.0f;
 
-
-    public override void Initialize(EnemyBrain brain)
+    public override void Initialize(EnemyBrain brain, EnemyData data)
     {
-        base.Initialize(brain);
+        base.Initialize(brain, data);
+
+        if (data is FlameAOEEnemyData castedData)
+        {
+            _flameData = castedData;
+        }
+        else
+        {
+            Debug.LogError($"GroundAOEAttack on {gameObject.name} requires FlameAOEEnemyData!");
+        }
     }
 
     public override void PerformAttack(Transform target)
@@ -46,21 +53,21 @@ public class GroundAOEAttack : AttackBehaviour
 
     private void SpawnSingleFlame(Vector3 centerPoint)
     {
+        if (_flameData == null) return;
+
         Vector2 randomDirection = Random.insideUnitCircle.normalized;
         float randomDistance = Random.Range(minRadiusFromPlayer, maxRadiusFromPlayer);
         Vector3 spawnOffset = new Vector3(randomDirection.x, 0, randomDirection.y) * randomDistance;
         Vector3 spawnPos = centerPoint + spawnOffset;
 
-
-
-        if (flameAOEEnemyData.flamePrefab != null)
+        if (_flameData.flamePrefab != null)
         {
-            GameObject flamesGO = Instantiate(flameAOEEnemyData.flamePrefab, spawnPos, Quaternion.identity);
+            GameObject flamesGO = Instantiate(_flameData.flamePrefab, spawnPos, Quaternion.identity);
             FlameArea flameArea = flamesGO.GetComponent<FlameArea>();
 
             if (flameArea != null)
             {
-                flameArea.Initialize(flameAOEEnemyData.attackDamage, flameAOEEnemyData.tickRate, flameAOEEnemyData.lifeTime);
+                flameArea.Initialize(_flameData.attackDamage, _flameData.tickRate, _flameData.lifeTime);
             }
         }
     }
@@ -78,7 +85,4 @@ public class GroundAOEAttack : AttackBehaviour
         enemyBrain.OnAttackFinished();
         enemyBrain.ResumeMovement();
     }
-
-    
-
 }

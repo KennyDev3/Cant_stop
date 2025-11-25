@@ -2,19 +2,25 @@ using UnityEngine;
 
 public class BossWaveAttack : AttackBehaviour
 {
-    public RangedEnemyData bossEnemyData;
+    private RangedEnemyData _bossData; // Injected
 
     [Header("Wave Settings")]
-    public Transform spawnPoint; // Assign a Transform in front of the boss
+    public Transform spawnPoint;
     public GameObject preAttackVFXPrefab;
-
-
-    [Tooltip("If true, wave fires at player. If false, fires boss forward.")]
     public bool aimAtPlayer = true;
 
-    public override void Initialize(EnemyBrain brain)
+    public override void Initialize(EnemyBrain brain, EnemyData data)
     {
-        base.Initialize(brain);
+        base.Initialize(brain, data);
+
+        if (data is RangedEnemyData castedData)
+        {
+            _bossData = castedData;
+        }
+        else
+        {
+            Debug.LogError($"BossWaveAttack on {gameObject.name} requires RangedEnemyData!");
+        }
     }
 
     public override void PerformAttack(Transform target)
@@ -22,7 +28,7 @@ public class BossWaveAttack : AttackBehaviour
         IsAttacking = true;
         enemyBrain.Animator.SetTrigger("Attack");
 
-        if (target != null)
+        if (target != null && aimAtPlayer)
         {
             enemyBrain.transform.LookAt(target.position);
             Vector3 euler = enemyBrain.transform.rotation.eulerAngles;
@@ -32,11 +38,8 @@ public class BossWaveAttack : AttackBehaviour
 
     public void AnimationEvent_PreAttackBlink()
     {
-        Debug.Log("Enemy is about to fire!");
-
         if (preAttackVFXPrefab != null)
         {
-
             Instantiate(
                 preAttackVFXPrefab,
                 spawnPoint != null ? spawnPoint.position : transform.position,
@@ -47,12 +50,14 @@ public class BossWaveAttack : AttackBehaviour
 
     public void AnimationEvent_SpawnWave()
     {
+        if (_bossData == null || spawnPoint == null) return;
+
         Transform target = enemyBrain.Target;
 
-        if (spawnPoint != null && bossEnemyData.projectilePrefab != null && target != null)
+        if (_bossData.projectilePrefab != null && target != null)
         {
             Vector3 targetDirection = target.position - spawnPoint.position;
-            targetDirection.y = 0; // No Y rotation to keep projectile perallel to the ground 
+            targetDirection.y = 0;
             targetDirection = targetDirection.normalized;
 
             Quaternion projectileRotation = Quaternion.LookRotation(targetDirection);
@@ -60,7 +65,7 @@ public class BossWaveAttack : AttackBehaviour
             Quaternion finalRotation = projectileRotation * zOffset;
 
             GameObject projectileGO = Instantiate(
-                bossEnemyData.projectilePrefab,
+                _bossData.projectilePrefab,
                 spawnPoint.position,
                 finalRotation
             );
@@ -69,22 +74,19 @@ public class BossWaveAttack : AttackBehaviour
 
             if (projectile != null)
             {
-                projectile.Initialize(bossEnemyData.attackDamage, bossEnemyData.projectileSpeed);
+                projectile.Initialize(_bossData.attackDamage, _bossData.projectileSpeed);
             }
         }
     }
 
     public override void AnimationEvent_EndAttack()
     {
-
         IsAttacking = false;
         enemyBrain.Animator.SetTrigger("AttackFinished");
-
         enemyBrain.ResetAttackTimer();
         enemyBrain.OnAttackFinished();
         enemyBrain.ResumeMovement();
     }
 
     public override void AnimationEvent_StartAttack() { }
-
 }

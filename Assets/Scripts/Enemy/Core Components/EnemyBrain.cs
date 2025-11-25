@@ -2,9 +2,11 @@ using UnityEngine;
 
 public class EnemyBrain : MonoBehaviour
 {
-    public EnemyData enemyData;
-    public bool isPlayerPriorityEnemy;
+    private EnemyData _data;
+    public EnemyData Data => _data;
+
     public float playerPriorityChance = 0.666f;
+    public bool isPlayerPriorityEnemy;
 
     private EnemyTargeting targeting;
     public Transform Target => targeting.CurrentTarget;
@@ -13,11 +15,9 @@ public class EnemyBrain : MonoBehaviour
     private AttackBehaviour attackBehaviour;
     public Animator Animator { get; private set; }
 
-    //State Machine
     private enum State { Idle, Chasing, Attacking }
     private State currentState;
 
-    //  Timers 
     private float attackTimer;
     private float visionCheckTimer;
     private const float VISION_CHECK_COOLDOWN = 0.5f;
@@ -28,28 +28,33 @@ public class EnemyBrain : MonoBehaviour
         movement = GetComponent<EnemyMovement>();
         attackBehaviour = GetComponent<AttackBehaviour>();
         Animator = GetComponentInChildren<Animator>();
-
-        targeting.Initialize(this);
-        movement.Initialize(this);
-        attackBehaviour.Initialize(this);
     }
 
-    void Start()
+    // Called by EnemyHealth -> Which is called by Pooler
+    public void Initialize(EnemyData data)
     {
+        _data = data;
+
+        if (targeting != null) targeting.Initialize(this);
+        if (movement != null) movement.Initialize(this);
+        if (attackBehaviour != null) attackBehaviour.Initialize(this, _data);
+
+        // Reset Logic
         isPlayerPriorityEnemy = Random.value < playerPriorityChance;
         currentState = State.Idle;
-        attackTimer = enemyData.attackCooldown;
-
+        attackTimer = _data.attackCooldown;
     }
 
     void Update()
     {
+        // SAFETY CHECK: If Data hasn't been injected yet, do nothing.
+        if (_data == null) return;
+
         Animator.SetFloat("Speed", movement.GetCurrentSpeed());
 
-        
         attackTimer += Time.deltaTime;
-
         visionCheckTimer += Time.deltaTime;
+
         if (visionCheckTimer >= VISION_CHECK_COOLDOWN)
         {
             visionCheckTimer = 0f;
@@ -92,7 +97,7 @@ public class EnemyBrain : MonoBehaviour
 
         float distance = Vector3.Distance(transform.position, targeting.CurrentTarget.position);
 
-        if (distance > enemyData.visionRange)
+        if (distance > _data.visionRange)
         {
             targeting.ClearTarget();
             currentState = State.Idle;
@@ -100,7 +105,7 @@ public class EnemyBrain : MonoBehaviour
             return;
         }
 
-        if (distance <= enemyData.attackRange)
+        if (distance <= _data.attackRange)
         {
             currentState = State.Attacking;
         }
@@ -122,17 +127,16 @@ public class EnemyBrain : MonoBehaviour
         lookPos.y = transform.position.y;
         transform.LookAt(lookPos);
 
-
         if (!attackBehaviour.IsAttacking)
         {
-            if (attackTimer >= enemyData.attackCooldown)
+            if (attackTimer >= _data.attackCooldown)
             {
                 attackBehaviour.PerformAttack(targeting.CurrentTarget);
             }
 
             float distance = Vector3.Distance(transform.position, targeting.CurrentTarget.position);
-            float disengageRange = enemyData.attackRange;
-            if (distance > disengageRange)
+
+            if (distance > _data.attackRange)
             {
                 currentState = State.Chasing;
             }
@@ -144,34 +148,27 @@ public class EnemyBrain : MonoBehaviour
         if (targeting.CurrentTarget != null)
         {
             float distance = Vector3.Distance(transform.position, targeting.CurrentTarget.position);
-            if (distance > enemyData.attackRange)
+            if (distance > _data.attackRange)
             {
                 currentState = State.Chasing;
             }
         }
     }
+
     public void PlayHitAnimation()
     {
-        if (Animator != null)
-            Animator.SetTrigger("GetHit");
+        if (Animator != null) Animator.SetTrigger("GetHit");
     }
 
     public void HandleDeath()
     {
         this.enabled = false;
-
-        if (Animator != null)
-        {
-            Animator.enabled = false;
-        }
+        if (Animator != null) Animator.enabled = false;
     }
 
     public void StopMovement()
     {
-        if (movement != null)
-        {
-            movement.Stop();
-        }
+        if (movement != null) movement.Stop();
     }
 
     public void ResumeMovement()

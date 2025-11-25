@@ -12,7 +12,10 @@ public class EnemyTargeting : MonoBehaviour
     public void Initialize(EnemyBrain brain)
     {
         this.enemyBrain = brain;
-        this.isPlayerPriority = brain.isPlayerPriorityEnemy;
+
+        // Safety check
+        if (brain != null)
+            this.isPlayerPriority = brain.isPlayerPriorityEnemy;
 
         GameObject playerGO = GameObject.FindGameObjectWithTag("Player");
         if (playerGO != null) playerTarget = playerGO.transform;
@@ -31,8 +34,11 @@ public class EnemyTargeting : MonoBehaviour
 
     public void FindClosestTarget()
     {
+        if (enemyBrain == null || enemyBrain.Data == null) return;
+
         Transform closest = null;
-        float shortestDistance = enemyBrain.enemyData.visionRange;
+
+        float shortestDistance = enemyBrain.Data.visionRange;
         Vector3 myPosition = transform.position;
 
         if (playerTarget != null)

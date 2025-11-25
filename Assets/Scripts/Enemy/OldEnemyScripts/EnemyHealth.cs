@@ -4,67 +4,56 @@ using UnityEngine.AI;
 
 public class EnemyHealth : MonoBehaviour
 {
-    [Header("Core Setup")]
-    public EnemyData enemyData;
+    private EnemyData _data;
+    public EnemyData Data => _data;
+
     public bool isDead { get; private set; } = false;
     private float currentHealth;
 
-    // --- Cached Components for performance ---
+    // --- Cached Components ---
     private EnemyBrain enemyBrain;
     private NavMeshAgent navMeshAgent;
     private Collider enemyCollider;
-    private Animator animator; // Cache the Animator
+    private Animator animator;
+    private AttackBehaviour[] attackBehaviours;
 
     [SerializeField] FloatingEnemyHealthBar healthBar;
 
+    [Header("Pooling Architecture")]
+    public GarbageItem attachedGarbageComponent;
+
     [Header("Effects")]
     public float makeCorposeInteractableDelay = 1.5f;
-    private float coprseInteractionSphereSize = 0.006f;
     private float particleEffectDestroyTime = 3f;
-
-    [Header("Damage Text Settings")]
-    [Tooltip("How high above the hit point the text should appear. Increase this for tall enemies.")]
-    public float damageTextOffsetY = 0f; //
+    public float damageTextOffsetY = 0f;
 
     [Header("Ragdoll Setup")]
-    [Tooltip("The root of the ragdoll hierarchy (usually the Hips bone).")]
     public Transform ragdollRootBone;
-    [Tooltip("The GameObject that holds the mesh renderer.")]
     public Transform adventurerModel;
-    [Tooltip("How long the ragdoll corpse stays physically active before being frozen or pooled.")]
-    public float corpseCleanupTime = 10f;
 
-
-    //  Cached Ragdoll Components  
     private Rigidbody[] ragdollRigidbodies;
     private Collider[] ragdollColliders;
-
-    // Mesh Components for Hit Flash 
     private SkinnedMeshRenderer _meshRenderer;
     private MaterialPropertyBlock _propBlock;
     private int _colorPropertyID;
     private Coroutine _flashRoutine;
-
     private float meshHitFlashDuration = 0.08f;
-
-    [Header("Death Physics")]
     public float deathForceMultiplier = 150f;
 
     void Awake()
     {
-        // Cache main components
         enemyBrain = GetComponent<EnemyBrain>();
+        attackBehaviours = GetComponents<AttackBehaviour>();
         navMeshAgent = GetComponent<NavMeshAgent>();
         enemyCollider = GetComponent<Collider>();
-        animator = GetComponentInChildren<Animator>(); // Animator is on child
-        _meshRenderer = adventurerModel.GetComponentInChildren<SkinnedMeshRenderer>();
+        animator = GetComponentInChildren<Animator>();
+
+        if (adventurerModel != null)
+            _meshRenderer = adventurerModel.GetComponentInChildren<SkinnedMeshRenderer>();
 
         _propBlock = new MaterialPropertyBlock();
         _colorPropertyID = Shader.PropertyToID("_EmissionColor");
 
-        currentHealth = enemyData.maxHealth;
-
-        // Optimized caching of Ragdoll components
         if (ragdollRootBone != null)
         {
             ragdollRigidbodies = ragdollRootBone.GetComponentsInChildren<Rigidbody>();
@@ -72,71 +61,60 @@ public class EnemyHealth : MonoBehaviour
         }
     }
 
-    private void Start()
+    public void Initialize(EnemyData dataToUse)
     {
-        healthBar.UpdateHealthBar(currentHealth, enemyData.maxHealth);
+        if (dataToUse == null) { Debug.LogError($"[EnemyHealth] Missing Data on {gameObject.name}"); return; }
 
-        // --- OPTIMIZATION 2: Disable the ragdoll on start ---
+        _data = dataToUse;
+        currentHealth = _data.maxHealth;
+
+        if (navMeshAgent != null) navMeshAgent.speed = _data.moveSpeed;
+        if (enemyBrain != null) enemyBrain.Initialize(_data);
+
+        if (attackBehaviours != null)
+        {
+            foreach (var attack in attackBehaviours) attack.Initialize(enemyBrain, _data);
+        }
+
+        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, _data.maxHealth);
+    }
+
+    private void OnEnable()
+    {
+        isDead = false;
+        this.enabled = true;
+
+        if (enemyBrain != null) enemyBrain.enabled = true;
+        if (enemyCollider != null) enemyCollider.enabled = true;
+        if (navMeshAgent != null)
+        {
+            navMeshAgent.enabled = true;
+            navMeshAgent.isStopped = false;
+        }
+        if (animator != null) animator.enabled = true;
+        if (healthBar != null) healthBar.gameObject.SetActive(true);
+
+        if (_meshRenderer != null)
+        {
+            _propBlock.Clear();
+            _meshRenderer.SetPropertyBlock(_propBlock);
+        }
+
+        if (attachedGarbageComponent != null)
+        {
+            attachedGarbageComponent.ResetPooledInteractable();
+            attachedGarbageComponent.OnCollected += HandleLootCollected;
+        }
+
+        // This resets ALL colliders to be ready for the next death
         SetRagdollState(false);
     }
 
-    // This is the core optimization function
-    private void SetRagdollState(bool isActive)
+    private void OnDisable()
     {
-        if (ragdollRigidbodies == null) return;
-
-        // Toggle the main collider and nav agent based on the *inverse* of the ragdoll state
-        if (enemyCollider != null) enemyCollider.enabled = !isActive;
-        if (navMeshAgent != null) navMeshAgent.enabled = !isActive;
-
-        // Toggle the animator
-        if (animator != null) animator.enabled = !isActive;
-
-        // Toggle all ragdoll colliders
-        foreach (Collider col in ragdollColliders)
+        if (attachedGarbageComponent != null)
         {
-            col.enabled = isActive;
-        }
-
-        // Toggle all ragdoll rigidbodies
-        foreach (Rigidbody rb in ragdollRigidbodies)
-        {
-            rb.isKinematic = !isActive;
-        }
-    }
-
-    // For AOE and non Turret damage
-    public void TakeDamage(float damage) 
-    {
-        // This assumes where center of mass is, might be inaccurate in the future
-
-        Vector3 centerMass = transform.position + (Vector3.up * 1.0f);
-        TakeDamage(damage, centerMass);
-    }
-
-    // For turret / Direct hits
-    public void TakeDamage(float damage, Vector3 hitPoint)
-    {
-        if (isDead) return;
-
-        bool isCrit = damage > 150;
-
-        Vector3 textSpawnPos = hitPoint + (Vector3.up * damageTextOffsetY);
-        DamageTextManager.Instance.ShowDamage(damage, textSpawnPos, isCrit);
-        currentHealth -= damage;
-
-        StartFlash(meshHitFlashDuration);
-        PlayHitEffect(hitPoint);
-        healthBar.UpdateHealthBar(currentHealth, enemyData.maxHealth);
-
-        if (enemyBrain != null)
-        {
-            enemyBrain.PlayHitAnimation();
-        }
-
-        if (currentHealth <= 0)
-        {
-            Die();
+            attachedGarbageComponent.OnCollected -= HandleLootCollected;
         }
     }
 
@@ -145,59 +123,23 @@ public class EnemyHealth : MonoBehaviour
         if (isDead) return;
         isDead = true;
 
-        if (healthBar != null) Destroy(healthBar.gameObject);
+        if (healthBar != null) healthBar.gameObject.SetActive(false);
 
+        // 1. Enable full ragdoll Physics
         SetRagdollState(true);
 
-        // Disable core logic scripts
         if (enemyBrain != null) enemyBrain.enabled = false;
 
         ApplyDeathForce();
 
-        if (enemyData.garbageDataOnDeath != null && adventurerModel != null)
+        if (_data.garbageDataOnDeath != null && attachedGarbageComponent != null)
         {
             StartCoroutine(ActivateLootColliderDelayed(makeCorposeInteractableDelay));
         }
 
-        StartCoroutine(CorpseCleanup());
-    }
-
-    private void ApplyDeathForce()
-    {
-        Rigidbody hipRB = ragdollRootBone.GetComponent<Rigidbody>();
-        if (hipRB != null)
+        if (CorpseManager.Instance != null)
         {
-            Vector3 backwardDirection = -transform.forward; // Use the main transform's forward
-            Vector3 horizontalForce = backwardDirection * deathForceMultiplier;
-            hipRB.AddForce(horizontalForce, ForceMode.Impulse);
-            hipRB.AddTorque(Random.insideUnitSphere * deathForceMultiplier * 0.1f, ForceMode.Impulse);
-        }
-    }
-
-    private IEnumerator CorpseCleanup()
-    {
-        yield return new WaitForSeconds(corpseCleanupTime);
-
-        
-        foreach (Rigidbody rb in ragdollRigidbodies)
-        {
-            rb.isKinematic = true;
-        }
-
-        foreach (Collider col in ragdollColliders)
-        {
-            col.enabled = false;
-        }
-
-
-    }
-
-    private void PlayHitEffect(Vector3 position)
-    {
-        if (enemyData.bloodVFX != null)
-        {
-            GameObject effect = Instantiate(enemyData.bloodVFX, position, Quaternion.identity);
-            Destroy(effect, particleEffectDestroyTime);
+            CorpseManager.Instance.RegisterCorpse(this);
         }
     }
 
@@ -205,46 +147,135 @@ public class EnemyHealth : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
 
-        GameObject corpseGO = adventurerModel.gameObject;
-        GarbageItem garbageItem = corpseGO.AddComponent<GarbageItem>();
-        garbageItem.Initialize(enemyData.garbageDataOnDeath);
-        garbageItem.destroyTarget = this.gameObject;
-
-        SphereCollider interactionCollider = corpseGO.AddComponent<SphereCollider>();
-        interactionCollider.radius = coprseInteractionSphereSize;
-        interactionCollider.isTrigger = true;
-        interactionCollider.enabled = true;
-
-        corpseGO.layer = LayerMask.NameToLayer("Interactable");
-    }
-
-    public void StartFlash(float duration)
-    {
-        if (_meshRenderer == null)
+        if (attachedGarbageComponent != null)
         {
-            return;
+            attachedGarbageComponent.ActivatePooledInteractable(_data.garbageDataOnDeath);
         }
 
-        if (_flashRoutine != null)
-        {
-            StopCoroutine(_flashRoutine);
-        }
-
-        // Start the new flash coroutine
-        _flashRoutine = StartCoroutine(FlashRoutine(duration));
+        OptimizeCorpsePhysics();
     }
 
-    private IEnumerator FlashRoutine(float duration)
+    private void OptimizeCorpsePhysics()
     {
-        _meshRenderer.GetPropertyBlock(_propBlock);
+        foreach (Rigidbody rb in ragdollRigidbodies)
+        {
+            
+            if (rb.transform != ragdollRootBone)
+            {
+                rb.isKinematic = true;
+            }
+        }
 
-        _propBlock.SetColor(_colorPropertyID, Color.white);
-        _meshRenderer.SetPropertyBlock(_propBlock);
+        foreach (Collider col in ragdollColliders)
+        {
+            
+            if (col.transform != ragdollRootBone)
+            {
+                col.enabled = false;
+            }
+        }
+    }
 
-        yield return new WaitForSeconds(duration);
+    private void SetRagdollState(bool isActive)
+    {
+        if (ragdollRigidbodies == null) return;
 
-        _propBlock.Clear();
-        _meshRenderer.SetPropertyBlock(_propBlock);
-        _flashRoutine = null;
+        if (enemyCollider != null) enemyCollider.enabled = !isActive;
+        if (navMeshAgent != null) navMeshAgent.enabled = !isActive;
+        if (animator != null) animator.enabled = !isActive;
+
+        foreach (Collider col in ragdollColliders) col.enabled = isActive;
+        foreach (Rigidbody rb in ragdollRigidbodies)
+        {
+            if (!isActive)
+            {
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+            rb.isKinematic = !isActive;
+        }
+    }
+
+    private void HandleLootCollected(GarbageItem item)
+    {
+        if (CorpseManager.Instance != null) CorpseManager.Instance.UnregisterCorpse(this);
+        ReturnToPool();
+    }
+
+    public void ForceReturnToPool()
+    {
+        ReturnToPool();
+    }
+
+    private void ReturnToPool()
+    {
+        if (ragdollRootBone != null)
+        {
+            ragdollRootBone.localPosition = Vector3.zero;
+            ragdollRootBone.localRotation = Quaternion.identity;
+        }
+
+        if (EnemyPooler.Instance != null)
+        {
+            EnemyPooler.Instance.ReturnEnemyToPool(_data, this.gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    private void ApplyDeathForce()
+    {
+        Rigidbody hipRB = ragdollRootBone.GetComponent<Rigidbody>();
+        if (hipRB != null)
+        {
+            Vector3 backwardDirection = -transform.forward;
+            Vector3 horizontalForce = backwardDirection * deathForceMultiplier;
+            hipRB.AddForce(horizontalForce, ForceMode.Impulse);
+            hipRB.AddTorque(Random.insideUnitSphere * deathForceMultiplier * 0.1f, ForceMode.Impulse);
+        }
+    }
+
+    private void PlayHitEffect(Vector3 position)
+    {
+        if (_data == null) return;
+        if (_data.bloodVFX != null)
+        {
+            GameObject effect = Instantiate(_data.bloodVFX, position, Quaternion.identity);
+            Destroy(effect, particleEffectDestroyTime);
+        }
+    }
+
+    public void TakeDamage(float damage)
+    {
+        if (_data == null) return;
+        TakeDamage(damage, transform.position + Vector3.up);
+    }
+
+    public void TakeDamage(float damage, Vector3 hitPoint)
+    {
+        if (isDead) return;
+        if (_data == null) return;
+
+        if (DamageTextManager.Instance != null) DamageTextManager.Instance.ShowDamage(damage, hitPoint + Vector3.up * damageTextOffsetY, damage > 150);
+
+        currentHealth -= damage;
+        StartFlash(meshHitFlashDuration);
+        PlayHitEffect(hitPoint);
+
+        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, _data.maxHealth);
+        if (enemyBrain != null) enemyBrain.PlayHitAnimation();
+
+        if (currentHealth <= 0) Die();
+    }
+
+    public void StartFlash(float duration) { if (_meshRenderer) StartCoroutine(FlashRoutine(duration)); }
+
+    private IEnumerator FlashRoutine(float d)
+    {
+        _meshRenderer.GetPropertyBlock(_propBlock); _propBlock.SetColor(_colorPropertyID, Color.white); _meshRenderer.SetPropertyBlock(_propBlock);
+        yield return new WaitForSeconds(d);
+        _propBlock.Clear(); _meshRenderer.SetPropertyBlock(_propBlock); _flashRoutine = null;
     }
 }
