@@ -8,12 +8,10 @@ public class GroundPoundAttack : AttackBehaviour
 
     private GameObject activeIndicator;
     private bool hasDealtDamage;
-    private float _damage;
 
     public override void Initialize(EnemyBrain brain, EnemyData data)
     {
         base.Initialize(brain, data);
-        _damage = data.attackDamage; // Generic damage
     }
 
     public override void PerformAttack(Transform target)
@@ -47,7 +45,8 @@ public class GroundPoundAttack : AttackBehaviour
                 PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
                 if (playerHealth != null)
                 {
-                    playerHealth.TakeDamage(_damage);
+                    float damageToDeal = enemyBrain.GetScaledDamage(baseData.attackDamage);
+                    playerHealth.TakeDamage(damageToDeal);
                 }
                 break;
             }

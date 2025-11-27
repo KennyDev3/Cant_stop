@@ -8,7 +8,10 @@ public class EnemyHealth : MonoBehaviour
     public EnemyData Data => _data;
 
     public bool isDead { get; private set; } = false;
+    public float RuntimeDamageMultiplier { get; private set; } = 1f;
+
     private float currentHealth;
+    private float finalMaxHealth;
 
     // --- Cached Components ---
     private EnemyBrain enemyBrain;
@@ -63,12 +66,14 @@ public class EnemyHealth : MonoBehaviour
         }
     }
 
-    public void Initialize(EnemyData dataToUse)
+    public void Initialize(EnemyData dataToUse, float hpMult, float dmgMult)
     {
         if (dataToUse == null) { Debug.LogError($"[EnemyHealth] Missing Data on {gameObject.name}"); return; }
 
         _data = dataToUse;
-        currentHealth = _data.maxHealth;
+        RuntimeDamageMultiplier = dmgMult;
+        finalMaxHealth = _data.maxHealth * hpMult;
+        currentHealth = finalMaxHealth;
 
         if (navMeshAgent != null) navMeshAgent.speed = _data.moveSpeed;
         if (enemyBrain != null) enemyBrain.Initialize(_data);
@@ -78,7 +83,7 @@ public class EnemyHealth : MonoBehaviour
             foreach (var attack in attackBehaviours) attack.Initialize(enemyBrain, _data);
         }
 
-        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, _data.maxHealth);
+        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, finalMaxHealth);
     }
 
     private void OnEnable()
@@ -277,7 +282,7 @@ public class EnemyHealth : MonoBehaviour
         StartFlash(meshHitFlashDuration);
         PlayHitEffect(hitPoint);
 
-        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, _data.maxHealth);
+        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, finalMaxHealth);
         if (enemyBrain != null) enemyBrain.PlayHitAnimation();
 
         if (currentHealth <= 0) Die();
