@@ -23,7 +23,7 @@ public class EnemyHealth : MonoBehaviour
     public GarbageItem attachedGarbageComponent;
 
     [Header("Effects")]
-    public float makeCorposeInteractableDelay = 1.5f;
+    public float makeCorposeInteractableDelay = 2.75f;
     private float particleEffectDestroyTime = 3f;
     public float damageTextOffsetY = 0f;
 
@@ -39,6 +39,8 @@ public class EnemyHealth : MonoBehaviour
     private Coroutine _flashRoutine;
     private float meshHitFlashDuration = 0.08f;
     public float deathForceMultiplier = 150f;
+
+    public static event System.Action<EnemyData> OnEnemyDeath;
 
     void Awake()
     {
@@ -123,9 +125,11 @@ public class EnemyHealth : MonoBehaviour
         if (isDead) return;
         isDead = true;
 
+        OnEnemyDeath?.Invoke(_data); // Invoke Event
+
         if (healthBar != null) healthBar.gameObject.SetActive(false);
 
-        // 1. Enable full ragdoll Physics
+        // Enable full ragdoll Physics
         SetRagdollState(true);
 
         if (enemyBrain != null) enemyBrain.enabled = false;
@@ -160,10 +164,9 @@ public class EnemyHealth : MonoBehaviour
         foreach (Rigidbody rb in ragdollRigidbodies)
         {
             
-            if (rb.transform != ragdollRootBone)
-            {
+            
                 rb.isKinematic = true;
-            }
+            
         }
 
         foreach (Collider col in ragdollColliders)
@@ -185,14 +188,24 @@ public class EnemyHealth : MonoBehaviour
         if (animator != null) animator.enabled = !isActive;
 
         foreach (Collider col in ragdollColliders) col.enabled = isActive;
+
         foreach (Rigidbody rb in ragdollRigidbodies)
         {
-            if (!isActive)
+            if (isActive)
             {
-                rb.linearVelocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
+                rb.isKinematic = false;
             }
-            rb.isKinematic = !isActive;
+            else
+            {
+                
+                if (!rb.isKinematic)
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                }
+
+                rb.isKinematic = true;
+            }
         }
     }
 
