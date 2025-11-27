@@ -8,6 +8,14 @@ public class EnemyData : ScriptableObject
     public GameObject prefab;
     public enum TargetType { Player, Truck }
 
+    [Header("Director Settings")]
+    [Tooltip("Credit cost to spawn this unit")]
+    public float spawnCost = 10f;
+
+    [Tooltip("Chance to pick this unit if we can afford it")]
+    public float selectionWeight = 1f;
+
+
     [Header("Behavior")]
     public bool onlyAttackPlayer = false;
     public float visionRange = 20f;
