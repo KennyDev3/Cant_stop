@@ -15,7 +15,7 @@ public class EnemyPooler : MonoBehaviour
         Instance = this;
     }
 
-    public GameObject GetEnemy(EnemyData data, Vector3 position, Quaternion rotation)
+    public GameObject GetEnemy(EnemyData data, Vector3 position, Quaternion rotation, float hpMult, float dmgMult)
     {
         if (data == null)
         {
@@ -51,7 +51,8 @@ public class EnemyPooler : MonoBehaviour
         EnemyHealth health = enemyObj.GetComponentInChildren<EnemyHealth>();
         if (health != null)
         {
-            health.Initialize(data);
+            // passing the multipliers
+            health.Initialize(data, hpMult, dmgMult);
         }
         else if (debugMode)
         {

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
-using System.Linq; 
+using System.Linq;
 using UnityEngine;
+using UnityEngine.AI; 
 using TMPro;
 
 public class EnemyDirector : MonoBehaviour
@@ -8,10 +9,10 @@ public class EnemyDirector : MonoBehaviour
     public static EnemyDirector Instance { get; private set; }
 
     [Header("Debug")]
-    [SerializeField] private bool debugMode = false; 
+    [SerializeField] private bool debugMode = false;
 
     [Header("Economy")]
-    [SerializeField] private float creditsPerSecond = 10f;
+    [SerializeField] private float baseCreditsPerSecond = 10f;
     [SerializeField] private float startCredits = 10f;
     [SerializeField] private float refundPercentage = 0.3f;
 
@@ -29,10 +30,16 @@ public class EnemyDirector : MonoBehaviour
 
     [Header("UI")]
     [SerializeField] private TextMeshProUGUI creditsText;
+    [SerializeField] private TextMeshProUGUI timeText;
+
+    [Header("UI - Modifiers")]
+    [SerializeField] private TextMeshProUGUI hpModifierText;
+    [SerializeField] private TextMeshProUGUI damageModifierText;
+    [SerializeField] private TextMeshProUGUI creditModifierText;
 
     private float currentCredits;
     private int currentLivingEnemies;
-    private float timer;
+    private float waveTimer; 
 
     private void Awake()
     {
@@ -46,12 +53,6 @@ public class EnemyDirector : MonoBehaviour
         {
             GameObject p = GameObject.FindGameObjectWithTag("Player");
             if (p != null) playerTransform = p.transform;
-            else if (debugMode) Debug.LogError("? [Director] No Player found! Ensure the player is tagged 'Player' or assigned in Inspector.");
-        }
-
-        if (debugMode && (availableEnemies == null || availableEnemies.Count == 0))
-        {
-            Debug.LogError("? [Director] 'Available Enemies' list is empty!");
         }
     }
 
@@ -64,13 +65,15 @@ public class EnemyDirector : MonoBehaviour
 
         UpdateUI();
 
-        currentCredits += creditsPerSecond * Time.deltaTime;
-        timer += Time.deltaTime;
+        float currentRate = baseCreditsPerSecond * DifficultyManager.Instance.CreditMultiplier;
 
-        if (timer >= spawnCheckInterval)
+        currentCredits += currentRate * Time.deltaTime;
+        waveTimer += Time.deltaTime;
+
+        if (waveTimer >= spawnCheckInterval)
         {
             AttemptSpawnWave();
-            timer = 0f;
+            waveTimer = 0f;
         }
     }
 
@@ -83,87 +86,89 @@ public class EnemyDirector : MonoBehaviour
         {
             float refund = data.spawnCost * refundPercentage;
             currentCredits += refund;
-            if (debugMode) Debug.Log($"?? [Director] Enemy Died. Refunded {refund}. Current Credits: {currentCredits}");
         }
     }
 
     private void AttemptSpawnWave()
     {
         if (currentLivingEnemies >= maxActiveEnemies) return;
+        if (availableEnemies == null || availableEnemies.Count == 0) return;
 
         int attempts = 0;
-        int spawnedCount = 0;
-
-        // Failsafe: Don't run if we have no enemy data to work with
-        if (availableEnemies == null || availableEnemies.Count == 0) return;
 
         while (currentCredits > 0 && currentLivingEnemies < maxActiveEnemies && attempts < 20)
         {
             attempts++;
-
-            // 1. Find Affordable Enemies
             List<EnemyData> affordable = availableEnemies.Where(x => x.spawnCost <= currentCredits).ToList();
 
-            if (affordable.Count == 0)
-            {
-                if (debugMode) Debug.Log($"?? [Director] Too poor to buy wave. Credits: {currentCredits:F1}. Cheapest Enemy: {availableEnemies.Min(e => e.spawnCost)}");
-                break; // Exit loop, wait for more money
-            }
+            if (affordable.Count == 0) break;
 
-            // 2. Select Enemy
             EnemyData selectedEnemy = affordable[Random.Range(0, affordable.Count)];
-
-            // 3. Find Position
             Vector3 spawnPos = GetDonutSpawnPosition();
 
             if (spawnPos != Vector3.zero)
             {
-                // 4. Pay & Spawn
                 currentCredits -= selectedEnemy.spawnCost;
 
-                GameObject newEnemy = EnemyPooler.Instance.GetEnemy(selectedEnemy, spawnPos, Quaternion.identity);
+                float hpMult = DifficultyManager.Instance.HpMultiplier;
+                float dmgMult = DifficultyManager.Instance.DamageMultiplier;
+
+                GameObject newEnemy = EnemyPooler.Instance.GetEnemy(
+                    selectedEnemy,
+                    spawnPos,
+                    Quaternion.identity,
+                    hpMult,
+                    dmgMult
+                );
 
                 if (newEnemy != null)
                 {
                     currentLivingEnemies++;
-                    spawnedCount++;
-                    if (debugMode) Debug.Log($"? [Director] Spawned {selectedEnemy.name}. Remaining Credits: {currentCredits:F1}");
                 }
-            }
-            else
-            {
-                if (debugMode) Debug.LogWarning("?? [Director] Could not find valid spawn position (Hit wall or invalid area).");
             }
         }
     }
 
     private Vector3 GetDonutSpawnPosition()
     {
-        // Try 10 times to find a spot
         for (int i = 0; i < 10; i++)
         {
             Vector2 randomDir = Random.insideUnitCircle.normalized;
             float distance = Random.Range(minSpawnRadius, maxSpawnRadius);
             Vector3 offset = new Vector3(randomDir.x, 0, randomDir.y) * distance;
-
             Vector3 candidatePos = playerTransform.position + offset;
-
             candidatePos.y = playerTransform.position.y;
-
-            
-
-            return candidatePos;
+            if (NavMesh.SamplePosition(candidatePos, out NavMeshHit hit, 2.0f, NavMesh.AllAreas))
+            {
+                return hit.position;
+            }
         }
 
         return Vector3.zero;
     }
 
-
     private void UpdateUI()
     {
         if (creditsText != null)
-        {
             creditsText.text = $"Credits: {currentCredits:F0}";
+
+        if (DifficultyManager.Instance == null) return;
+
+        if (timeText != null)
+        {
+            float t = DifficultyManager.Instance.TotalRunTime; // FIX 4: Correct property name
+            int minutes = Mathf.FloorToInt(t / 60);
+            int seconds = Mathf.FloorToInt(t % 60);
+            timeText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
         }
+
+        if (hpModifierText != null)
+            hpModifierText.text = $"HP: x{DifficultyManager.Instance.HpMultiplier:F1}";
+
+        if (damageModifierText != null)
+            damageModifierText.text = $"DMG: x{DifficultyManager.Instance.DamageMultiplier:F1}";
+
+        if (creditModifierText != null)
+            creditModifierText.text = $"$$$: x{DifficultyManager.Instance.CreditMultiplier:F1}";
     }
 }

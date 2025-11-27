@@ -400,10 +400,17 @@ namespace StarterAssets
 
         private void HandleDashInput()
         {
-            if (_input.jump && _dashCooldownTimer <= 0.0f)
+            if (_input.jump)
             {
+                
                 _input.jump = false;
-                StartCoroutine(Dash());
+
+                if (_dashCooldownTimer <= 0.0f)
+                {
+                    StartCoroutine(Dash());
+                }
+
+                
             }
         }
 

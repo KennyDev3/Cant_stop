@@ -3,6 +3,7 @@ using UnityEngine;
 public class EnemyBrain : MonoBehaviour
 {
     private EnemyData _data;
+    private EnemyHealth _health;
     public EnemyData Data => _data;
 
     public float playerPriorityChance = 0.666f;
@@ -28,6 +29,8 @@ public class EnemyBrain : MonoBehaviour
         movement = GetComponent<EnemyMovement>();
         attackBehaviour = GetComponent<AttackBehaviour>();
         Animator = GetComponentInChildren<Animator>();
+        _health = GetComponent<EnemyHealth>();
+
     }
 
     // Called by EnemyHealth -> Which is called by Pooler
@@ -43,6 +46,14 @@ public class EnemyBrain : MonoBehaviour
         isPlayerPriorityEnemy = Random.value < playerPriorityChance;
         currentState = State.Idle;
         attackTimer = _data.attackCooldown;
+    }
+
+    public float GetScaledDamage(float baseDamage)
+    {
+        if (_data == null) return 0f;
+        float multiplier = (_health != null) ? _health.RuntimeDamageMultiplier : 1f;
+
+        return baseDamage * multiplier;
     }
 
     void Update()

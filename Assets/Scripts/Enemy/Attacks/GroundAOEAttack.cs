@@ -67,7 +67,8 @@ public class GroundAOEAttack : AttackBehaviour
 
             if (flameArea != null)
             {
-                flameArea.Initialize(_flameData.attackDamage, _flameData.tickRate, _flameData.lifeTime);
+                float damageToDeal = enemyBrain.GetScaledDamage(_flameData.attackDamage);
+                flameArea.Initialize(damageToDeal, _flameData.tickRate, _flameData.lifeTime);
             }
         }
     }

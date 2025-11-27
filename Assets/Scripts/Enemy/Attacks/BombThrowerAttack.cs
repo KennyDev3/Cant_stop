@@ -48,7 +48,8 @@ public class BombThrowerAttack : AttackBehaviour
 
             if (bombController != null)
             {
-                bombController.Initialize(_bombData.attackDamage);
+                float damageToDeal = enemyBrain.GetScaledDamage(_bombData.attackDamage);
+                bombController.Initialize(damageToDeal);
             }
 
             if (bombRb != null)

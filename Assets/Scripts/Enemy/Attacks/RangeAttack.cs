@@ -52,7 +52,8 @@ public class RangeAttack : AttackBehaviour
 
             if (projectile != null)
             {
-                projectile.Initialize(_rangedData.attackDamage, _rangedData.projectileSpeed);
+                float damageToDeal = enemyBrain.GetScaledDamage(_rangedData.attackDamage);
+                projectile.Initialize(damageToDeal, _rangedData.projectileSpeed);
             }
         }
     }

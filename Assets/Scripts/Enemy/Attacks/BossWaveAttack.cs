@@ -14,13 +14,9 @@ public class BossWaveAttack : AttackBehaviour
         base.Initialize(brain, data);
 
         if (data is RangedEnemyData castedData)
-        {
             _bossData = castedData;
-        }
         else
-        {
             Debug.LogError($"BossWaveAttack on {gameObject.name} requires RangedEnemyData!");
-        }
     }
 
     public override void PerformAttack(Transform target)
@@ -74,7 +70,8 @@ public class BossWaveAttack : AttackBehaviour
 
             if (projectile != null)
             {
-                projectile.Initialize(_bossData.attackDamage, _bossData.projectileSpeed);
+                float damageToDeal = enemyBrain.GetScaledDamage(_bossData.attackDamage);
+                projectile.Initialize(damageToDeal, _bossData.projectileSpeed);
             }
         }
     }
