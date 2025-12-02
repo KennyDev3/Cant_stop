@@ -105,6 +105,11 @@ public class PlayerHealth : MonoBehaviour
         {
             characterController.enabled = false;
         }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.TriggerGameOver();
+        }
     }
 
     private void TriggerDamageFlash()

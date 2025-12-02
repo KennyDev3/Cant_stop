@@ -67,6 +67,8 @@ public class InventoryManager : MonoBehaviour
 
     public void AddItem(ItemSO item)
     {
+       
+
         // 1. Add to dictionary
         if (_inventory.ContainsKey(item))
             _inventory[item]++;
@@ -94,7 +96,11 @@ public class InventoryManager : MonoBehaviour
     {
         // Update Item Bar UI For more items
         _uiManager.UpdateItemDisplay(item, _inventory[item]);
-    }
+
+        // Show Fading Item description Panel
+        _uiManager.ShowItemPopup(item);
+
+        }
     }
 
     private void RecalculateAllStats()

@@ -67,4 +67,21 @@ public class DifficultyManager : MonoBehaviour
         if (debugMode) Debug.Log($"Difficulty Increased: Stage {DifficultyStage}");
         OnDifficultyIncreased?.Invoke(DifficultyStage);
     }
+
+    public void ResetDifficulty()
+    {
+        DifficultyStage = 0;
+        TotalRunTime = 0f;
+        _timer = 0f;
+        _currentInterval = profile.initialSafeTime;
+
+        HpMultiplier = 1f;
+        DamageMultiplier = 1f;
+        CreditMultiplier = 1f;
+
+        Debug.Log("[Difficulty] Stats reset.");
+    }
 }
+
+
+
