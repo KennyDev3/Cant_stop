@@ -5,6 +5,8 @@ public abstract class ItemSO : ScriptableObject
 {
     [Header("Display")]
     public string itemName;
+    public string displayName;
+    public string description;
     public Sprite icon;
     public GameObject pickupPrefab; // The physical visual to spawn from chest
 

@@ -57,6 +57,18 @@ namespace StarterAssets
         {
             pickUpGarbage = value.isPressed;
         }
+
+        public void OnPause(InputValue value)
+        {
+            if (value.isPressed)
+            {
+                // Directly toggle the Game Manager
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.TogglePause();
+                }
+            }
+        }
 #endif
 
 
@@ -85,18 +97,22 @@ namespace StarterAssets
 			interact = newInteractState;
 		}
 
+
 		public void PikcUpGarbageInput(bool newpickUpGarbageState)
 		{
             pickUpGarbage = newpickUpGarbageState;
 
         }
 
-		private void OnApplicationFocus(bool hasFocus)
-		{
-			SetCursorState(cursorLocked);
-		}
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameState.Playing)
+            {
+                SetCursorState(cursorLocked);
+            }
+        }
 
-		private void SetCursorState(bool newState)
+        private void SetCursorState(bool newState)
 		{
 			Cursor.lockState = newState ? CursorLockMode.Locked : CursorLockMode.None;
 		}

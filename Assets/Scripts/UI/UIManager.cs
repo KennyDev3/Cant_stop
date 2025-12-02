@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -21,6 +22,12 @@ public class UIManager : MonoBehaviour
     [Header("Item Display Config")]
     [SerializeField] private GameObject itemSlotPrefab; 
     [SerializeField] private Transform itemContainer;
+
+    [Header("Item Popup")]
+    [SerializeField] private ItemPopupUI popupPrefab;
+    [SerializeField] private Transform popupParent;
+    private ItemPopupUI _currentPopup;
+
 
     // Dictionary to map Data (ItemSO) to Visuals (ItemSlotUI)
 
@@ -95,6 +102,17 @@ public class UIManager : MonoBehaviour
                 _itemSlots.Add(item, newSlotScript);
             }
         }
+    }
+
+    public void ShowItemPopup(ItemSO item)
+    {
+        if (_currentPopup != null)
+        {
+            Destroy(_currentPopup.gameObject);
+        }
+
+        _currentPopup = Instantiate(popupPrefab, popupParent);
+        _currentPopup.Initialize(item.itemName, item.description);
     }
 
 
