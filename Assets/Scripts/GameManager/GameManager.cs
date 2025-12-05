@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System;
+using System.Collections; 
 
 public enum GameState
 {
@@ -11,7 +12,6 @@ public enum GameState
 
 public class GameManager : MonoBehaviour
 {
-
     public static GameManager Instance { get; private set; }
 
     [Header("Settings")]
@@ -20,9 +20,12 @@ public class GameManager : MonoBehaviour
 
     public event Action<GameState> OnStateChanged;
 
-
     public GameState CurrentState { get; private set; }
     public int CurrentRotation { get; private set; }
+
+    private Coroutine _hitStopCoroutine;
+    private float _defaultFixedDeltaTime;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -38,14 +41,18 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
+        _defaultFixedDeltaTime = Time.fixedDeltaTime;
+
         StartRun();
     }
-
 
     public void StartRun()
     {
         CurrentRotation = 0;
-        Time.timeScale = 1f;
+
+        
+        if (_hitStopCoroutine != null) StopCoroutine(_hitStopCoroutine);
+
         SetState(GameState.Playing);
     }
 
@@ -53,22 +60,28 @@ public class GameManager : MonoBehaviour
     {
         CurrentState = newState;
 
+        if (newState != GameState.Playing)
+        {
+            if (_hitStopCoroutine != null) StopCoroutine(_hitStopCoroutine);
+            Time.fixedDeltaTime = _defaultFixedDeltaTime; 
+        }
+
         switch (newState)
         {
             case GameState.Playing:
                 Time.timeScale = 1f;
-                Cursor.lockState = CursorLockMode.Locked; 
+                Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
                 break;
 
             case GameState.Paused:
-                Time.timeScale = 0f; 
+                Time.timeScale = 0f;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
                 break;
 
             case GameState.GameOver:
-                Time.timeScale = 0.5f; 
+                Time.timeScale = 0.5f;
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
                 break;
@@ -76,6 +89,38 @@ public class GameManager : MonoBehaviour
 
         OnStateChanged?.Invoke(newState);
     }
+
+  
+   
+    public void TriggerHitStop(float duration, float targetScale)
+    {
+        if (CurrentState != GameState.Playing) return;
+
+        if (_hitStopCoroutine != null)
+        {
+            StopCoroutine(_hitStopCoroutine);
+        }
+
+        _hitStopCoroutine = StartCoroutine(DoHitStop(duration, targetScale));
+    }
+
+    private IEnumerator DoHitStop(float duration, float targetScale)
+    {
+        Time.timeScale = targetScale;
+
+        Time.fixedDeltaTime = _defaultFixedDeltaTime * targetScale;
+        yield return new WaitForSecondsRealtime(duration);
+
+       
+        if (CurrentState == GameState.Playing)
+        {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = _defaultFixedDeltaTime;
+        }
+
+        _hitStopCoroutine = null;
+    }
+
 
     public void TogglePause()
     {
@@ -91,8 +136,6 @@ public class GameManager : MonoBehaviour
         }
     }
 
-
-
     public void IncrementRotation()
     {
         CurrentRotation++;
@@ -101,6 +144,9 @@ public class GameManager : MonoBehaviour
 
     public void RestartGame()
     {
+        if (_hitStopCoroutine != null) StopCoroutine(_hitStopCoroutine);
+        Time.fixedDeltaTime = _defaultFixedDeltaTime;
+
         if (DifficultyManager.Instance != null)
             DifficultyManager.Instance.ResetDifficulty();
 
@@ -111,7 +157,10 @@ public class GameManager : MonoBehaviour
 
     public void ReturnToMainMenu()
     {
+        if (_hitStopCoroutine != null) StopCoroutine(_hitStopCoroutine);
+        Time.fixedDeltaTime = _defaultFixedDeltaTime;
         Time.timeScale = 1f;
+
         SceneManager.LoadScene(mainMenuSceneName);
     }
 

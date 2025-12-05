@@ -14,6 +14,8 @@ namespace StarterAssets
 		public bool sprint;
 		public bool interact;
         public bool pickUpGarbage;
+        public bool parry;
+
 
 
         [Header("Movement Settings")]
@@ -52,6 +54,11 @@ namespace StarterAssets
 			InteractInput(value.isPressed);
 			Debug.Log("E has been pressed");
 		}
+
+        public void OnParry(InputValue value)
+        {
+            ParryInput(value.isPressed);
+        }
 
         public void OnPickUpGarbage(InputValue value)
         {
@@ -97,8 +104,13 @@ namespace StarterAssets
 			interact = newInteractState;
 		}
 
+        public void ParryInput(bool newParryState)
+        {
+            parry = newParryState;
+        }
 
-		public void PikcUpGarbageInput(bool newpickUpGarbageState)
+
+        public void PikcUpGarbageInput(bool newpickUpGarbageState)
 		{
             pickUpGarbage = newpickUpGarbageState;
 
