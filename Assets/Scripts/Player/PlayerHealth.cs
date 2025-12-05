@@ -18,6 +18,7 @@ public class PlayerHealth : MonoBehaviour
 
     private ThirdPersonController thirdPersonController;
     private CharacterController characterController;
+    private PlayerParryController _parryController;
 
     [System.Serializable]
     public class HealthChangeEvent : UnityEvent<float, float> { }
@@ -49,6 +50,8 @@ public class PlayerHealth : MonoBehaviour
         currentHealth = maxHealth;
         thirdPersonController = GetComponent<ThirdPersonController>();
         characterController = GetComponent<CharacterController>();
+        _parryController = GetComponent<PlayerParryController>();
+
         onHealthChanged.Invoke(currentHealth, maxHealth); // Initial UI update
 
         if (globalVolume != null && globalVolume.profile.TryGet(out _vignette))
@@ -71,7 +74,10 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(float damageAmount)
     {
-        if (isDead || (thirdPersonController != null && thirdPersonController.IsInvulnerable()))
+        if (isDead ||
+       (thirdPersonController != null && thirdPersonController.IsInvulnerable()) ||
+       (_parryController != null && _parryController.IsInvincible))
+
         {
             return;
         }
