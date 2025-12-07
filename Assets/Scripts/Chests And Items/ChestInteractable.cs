@@ -17,6 +17,14 @@ public class ChestInteractable : MonoBehaviour, IInteractable
     [SerializeField] private float rareChance = 0.3f;     // 30%
     [SerializeField] private float legendaryChance = 0.1f; // 10%
 
+    [Header("UI")]
+    [Tooltip("The text UI prefab that contains the BillboardText script.")]
+    [SerializeField] private GameObject costUIPrefab;
+    [Tooltip("World units to offset the UI text UP (Y-axis) from the chest's center.")]
+    [SerializeField] private float uiYOffset = 1.0f; // Adjust this value in the Inspector
+
+    private BillboardText _costUIText;
+
     [SerializeField] private Animator chestAnimator;
     private Outline _outline;
 
@@ -25,6 +33,21 @@ public class ChestInteractable : MonoBehaviour, IInteractable
 
     void Awake()
     {
+        if (costUIPrefab != null)
+        {
+            
+            Vector3 spawnPosition = transform.position + Vector3.up * uiYOffset;
+
+            GameObject uiInstance = Instantiate(costUIPrefab, spawnPosition, Quaternion.identity, transform);
+
+            _costUIText = uiInstance.GetComponent<BillboardText>();
+
+            if (_costUIText != null)
+            {
+                _costUIText.SetText($"Cost: ${cost}");
+                _costUIText.gameObject.SetActive(false);
+            }
+        }
         _outline = GetComponent<Outline>();
         if (_outline == null)
         {
@@ -122,6 +145,11 @@ public class ChestInteractable : MonoBehaviour, IInteractable
         {
             _outline.OutlineColor = Color.yellow;
         }
+
+        if (_costUIText != null && !_isOpen)
+        {
+            _costUIText.gameObject.SetActive(true);
+        }
     }
 
     public void Unhighlight()
@@ -129,6 +157,11 @@ public class ChestInteractable : MonoBehaviour, IInteractable
         if (_outline != null)
         {
             _outline.OutlineColor = Color.white;
+        }
+
+        if (_costUIText != null)
+        {
+            _costUIText.gameObject.SetActive(false);
         }
     }
 

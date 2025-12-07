@@ -15,6 +15,11 @@ namespace StarterAssets
 		public bool interact;
         public bool pickUpGarbage;
         public bool parry;
+        public bool chuck;
+
+
+        [Header("Debug Input")]
+        public bool debugAdd;
 
 
 
@@ -60,6 +65,11 @@ namespace StarterAssets
             ParryInput(value.isPressed);
         }
 
+        public void OnChuck(InputValue value)
+        {
+            ChuckInput(value.isPressed);
+        }
+
         public void OnPickUpGarbage(InputValue value)
         {
             pickUpGarbage = value.isPressed;
@@ -75,6 +85,11 @@ namespace StarterAssets
                     GameManager.Instance.TogglePause();
                 }
             }
+        }
+
+        public void OnDebugAdd(InputValue value)
+        {
+            DebugAddInput(value.isPressed);
         }
 #endif
 
@@ -109,11 +124,20 @@ namespace StarterAssets
             parry = newParryState;
         }
 
+        public void ChuckInput(bool newChuckState)
+        {
+            chuck = newChuckState;
+        }
 
         public void PikcUpGarbageInput(bool newpickUpGarbageState)
 		{
             pickUpGarbage = newpickUpGarbageState;
 
+        }
+
+        public void DebugAddInput(bool newDebugAddState)
+        {
+            debugAdd = newDebugAddState;
         }
 
         private void OnApplicationFocus(bool hasFocus)
