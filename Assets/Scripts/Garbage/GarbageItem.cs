@@ -1,7 +1,8 @@
-﻿using UnityEngine;
-using TMPro;
+﻿using StarterAssets;
 using System;
-using StarterAssets;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UIElements;
 
 public class GarbageItem : MonoBehaviour, IInteractable
 {
@@ -22,22 +23,47 @@ public class GarbageItem : MonoBehaviour, IInteractable
     [SerializeField] private GameObject destroyTarget;
     [SerializeField] private GameObject infoUIPrefab;
 
+    [Tooltip("Multiplier for the Y-axis offset, based on the object's height (bounds.size.y).")]
+    [SerializeField] private float uiYMultiplier = 0.6f;
+
+    [Tooltip("Multiplier for the Z-axis offset, based on the object's depth (bounds.size.z).")]
+    [SerializeField] private float uiZMultiplier = 0.5f;
+
     private int _originalLayer;
     private int _interactableLayerIndex;
     private GameObject _infoUIInstance;
     private TextMeshProUGUI _infoUIText;
+    private Renderer _renderer;
 
     private void Awake()
     {
         _interactableLayerIndex = LayerMask.NameToLayer(interactableLayerName);
         _originalLayer = gameObject.layer;
 
+
         // UI Setup
-        if (infoUIPrefab != null)
+        _renderer = GetComponentInChildren<Renderer>();
+        // ----------------------------------
+
+        if (infoUIPrefab != null && _renderer != null)
         {
-            _infoUIInstance = Instantiate(infoUIPrefab, transform.position, Quaternion.identity, transform);
+           
+            Bounds bounds = _renderer.bounds;
+
+            
+            float yOffset = bounds.center.y + (bounds.extents.y * uiYMultiplier);
+
+            float zOffset = bounds.extents.z * uiZMultiplier;
+            Vector3 spawnPosition = transform.position + new Vector3(0f, yOffset, zOffset);
+            _infoUIInstance = Instantiate(infoUIPrefab, spawnPosition, Quaternion.identity, transform);
+
+
             _infoUIText = _infoUIInstance.GetComponentInChildren<TextMeshProUGUI>();
             _infoUIInstance.SetActive(false);
+        }
+        else
+        {
+            if (_renderer == null) Debug.LogError("GarbageItem needs a Renderer component (or child Renderer) to calculate bounds.");
         }
 
         if (isPooledObject)
@@ -122,7 +148,13 @@ public class GarbageItem : MonoBehaviour, IInteractable
         }
 
         if (_infoUIInstance != null) _infoUIInstance.SetActive(true);
-        if (garbageData != null && _infoUIText != null) _infoUIText.text = $"{garbageData.itemName}";
+        if (garbageData != null && _infoUIText != null)
+        {
+            _infoUIText.text =
+                $"Value: ${garbageData.value}\n" +
+                $"Weight: {garbageData.capacityCost}\n" +
+                $"Tier: {garbageData.garbageTier}";
+        }
     }
 
     public void Unhighlight()

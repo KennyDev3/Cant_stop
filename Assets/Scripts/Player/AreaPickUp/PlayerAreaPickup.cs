@@ -11,7 +11,12 @@ public class PlayerAreaPickup : MonoBehaviour
 
     [Header("Cooldown (Stamina Style)")]
     [SerializeField] private float pickupCooldown = 3.0f; 
-    private float _currentCooldownTimer;                 
+    private float _currentCooldownTimer;
+
+
+    [Header("VFX Settings")]
+    [SerializeField] private GameObject pickupVfxPrefab;
+    [SerializeField] private float vfxScaleRatio = 0.8f;
 
     [Header("Visuals")]
     [SerializeField] private float visualDuration = 0.3f;
@@ -80,7 +85,9 @@ public class PlayerAreaPickup : MonoBehaviour
 
     void PerformAreaPickup()
     {
-        StartCoroutine(ShowPickupRadius());
+        //StartCoroutine(ShowPickupRadius()); // Turn on to show linerenderer Debugger 
+
+        TriggerPickupVFX();
 
         Collider[] hits = Physics.OverlapSphere(transform.position, radius, interactableLayer);
         int collectedCount = 0;
@@ -105,6 +112,16 @@ public class PlayerAreaPickup : MonoBehaviour
                 _uiManager.UpdatePickupCooldown(0f, pickupCooldown);
             }
         }
+    }
+
+    void TriggerPickupVFX()
+    {
+        if (pickupVfxPrefab == null) return;
+
+        GameObject vfxInstance = Instantiate(pickupVfxPrefab, transform.position, Quaternion.identity);
+        float scaleFactor = radius * vfxScaleRatio;
+        vfxInstance.transform.localScale = Vector3.one * scaleFactor;
+ 
     }
 
     // Visuals

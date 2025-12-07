@@ -48,24 +48,27 @@ public class ShockwaveProjectile : MonoBehaviour, IParriable
 
         else if (_isParried && other.gameObject.layer == LayerMask.NameToLayer("Enemy"))
         {
-            
             var enemyRoot = other.transform.root.gameObject;
+            var enemyHealth = enemyRoot.GetComponent<EnemyHealth>();
 
-            if (_alreadyHitEnemies.Contains(enemyRoot))
+            if (enemyHealth == null)
+            {
+                enemyHealth = other.GetComponent<EnemyHealth>();
+                if (enemyHealth == null) return; // Not a valid enemy, exit.
+            }
+
+            GameObject uniqueEnemyId = enemyHealth.gameObject;
+
+            if (_alreadyHitEnemies.Contains(uniqueEnemyId))
             {
                 return; 
             }
 
-            
-            var enemyHealth = other.GetComponent<EnemyHealth>(); 
-            if (enemyHealth != null)
-            {
-                enemyHealth.TakeDamage(damage); // Damage is already doubled in OnParried
-            }
 
-            _alreadyHitEnemies.Add(enemyRoot);
+            enemyHealth.TakeDamage(damage);
+            _alreadyHitEnemies.Add(uniqueEnemyId);
 
-            Debug.Log($"Pierced through {other.name}!");
+            Debug.Log($"Pierced through {uniqueEnemyId.name}!");
 
             //// Consider Playing VFX
 
@@ -74,7 +77,7 @@ public class ShockwaveProjectile : MonoBehaviour, IParriable
             //    Instantiate(enemyHitEffect, transform.position, Quaternion.identity);
             //}
 
-            
+
         }
     }
 
