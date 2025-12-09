@@ -60,7 +60,15 @@ public class EnemyPooler : MonoBehaviour
         }
 
         enemyObj.SetActive(true);
+
+        EnemySpawnRise spawn = enemyObj.GetComponentInChildren<EnemySpawnRise>();
+        if (spawn != null)
+        {
+            spawn.PlaySpawn(position);
+        }
+
         return enemyObj;
+
     }
 
     public void ReturnEnemyToPool(EnemyData data, GameObject enemy)
