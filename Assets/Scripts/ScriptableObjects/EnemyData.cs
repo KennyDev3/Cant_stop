@@ -8,6 +8,9 @@ public class EnemyData : ScriptableObject
     public GameObject prefab;
     public enum TargetType { Player, Truck }
 
+    [Header("AI Behavior")]
+    public EnemyMovementPattern movementPattern;
+
     [Header("Director Settings")]
     [Tooltip("Credit cost to spawn this unit")]
     public float spawnCost = 10f;

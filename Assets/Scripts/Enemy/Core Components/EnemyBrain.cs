@@ -20,6 +20,8 @@ public class EnemyBrain : MonoBehaviour
     private State currentState;
 
     private float attackTimer;
+    public bool IsAttackReady => attackTimer >= _data.attackCooldown;
+
     private float visionCheckTimer;
     private const float VISION_CHECK_COOLDOWN = 0.5f;
 
@@ -116,9 +118,19 @@ public class EnemyBrain : MonoBehaviour
             return;
         }
 
-        if (distance <= _data.attackRange)
+        
+        bool isCooldownReady = attackTimer >= _data.attackCooldown;
+
+        if (distance <= _data.attackRange && isCooldownReady)
         {
             currentState = State.Attacking;
+            movement.Stop(); 
+            return;
+        }
+
+        if (_data.movementPattern != null)
+        {
+            movement.ExecutePattern(targeting.CurrentTarget);
         }
         else
         {
@@ -138,16 +150,15 @@ public class EnemyBrain : MonoBehaviour
         lookPos.y = transform.position.y;
         transform.LookAt(lookPos);
 
+       
         if (!attackBehaviour.IsAttacking)
         {
             if (attackTimer >= _data.attackCooldown)
             {
                 attackBehaviour.PerformAttack(targeting.CurrentTarget);
+                attackTimer = 0f; 
             }
-
-            float distance = Vector3.Distance(transform.position, targeting.CurrentTarget.position);
-
-            if (distance > _data.attackRange)
+            else
             {
                 currentState = State.Chasing;
             }
@@ -156,14 +167,8 @@ public class EnemyBrain : MonoBehaviour
 
     public void OnAttackFinished()
     {
-        if (targeting.CurrentTarget != null)
-        {
-            float distance = Vector3.Distance(transform.position, targeting.CurrentTarget.position);
-            if (distance > _data.attackRange)
-            {
-                currentState = State.Chasing;
-            }
-        }
+        currentState = State.Chasing;
+
     }
 
     public void PlayHitAnimation()
