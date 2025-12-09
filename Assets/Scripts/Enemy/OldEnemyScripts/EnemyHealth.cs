@@ -141,7 +141,7 @@ public class EnemyHealth : MonoBehaviour
         if (isDead) return;
         isDead = true;
 
-        OnEnemyDeath?.Invoke(_data); // Invoke Event
+        OnEnemyDeath?.Invoke(_data); // Kill count event
 
         if (healthBar != null) healthBar.gameObject.SetActive(false);
 

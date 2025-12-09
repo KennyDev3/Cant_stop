@@ -23,6 +23,10 @@ public class GameManager : MonoBehaviour
     public GameState CurrentState { get; private set; }
     public int CurrentRotation { get; private set; }
 
+    public int KillCount { get; private set; }
+    public event Action<int> OnKillCountChanged;
+
+
     private Coroutine _hitStopCoroutine;
     private float _defaultFixedDeltaTime;
 
@@ -39,6 +43,16 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        EnemyHealth.OnEnemyDeath += HandleEnemyDeath;
+    }
+
+    private void OnDisable()
+    {
+        EnemyHealth.OnEnemyDeath -= HandleEnemyDeath;
+    }
+
     private void Start()
     {
         _defaultFixedDeltaTime = Time.fixedDeltaTime;
@@ -48,6 +62,9 @@ public class GameManager : MonoBehaviour
 
     public void StartRun()
     {
+        KillCount = 0;
+        OnKillCountChanged?.Invoke(KillCount);
+
         CurrentRotation = 0;
 
         
@@ -119,6 +136,16 @@ public class GameManager : MonoBehaviour
         }
 
         _hitStopCoroutine = null;
+    }
+
+    private void HandleEnemyDeath(EnemyData data)
+    {
+        if (CurrentState == GameState.GameOver) return;
+
+        KillCount++;
+
+       
+        OnKillCountChanged?.Invoke(KillCount);
     }
 
 

@@ -29,6 +29,9 @@ public class GarbageItem : MonoBehaviour, IInteractable
     [Tooltip("Multiplier for the Z-axis offset, based on the object's depth (bounds.size.z).")]
     [SerializeField] private float uiZMultiplier = 0.5f;
 
+    [Tooltip("Used if NO Renderer is found.")]
+    [SerializeField] private Vector3 fallbackOffset = new Vector3(0, 1.5f, 0);
+
     private int _originalLayer;
     private int _interactableLayerIndex;
     private GameObject _infoUIInstance;
@@ -40,46 +43,41 @@ public class GarbageItem : MonoBehaviour, IInteractable
         _interactableLayerIndex = LayerMask.NameToLayer(interactableLayerName);
         _originalLayer = gameObject.layer;
 
-
-        // UI Setup
         _renderer = GetComponentInChildren<Renderer>();
-        // ----------------------------------
 
-        if (infoUIPrefab != null && _renderer != null)
+        if (infoUIPrefab != null)
         {
-           
-            Bounds bounds = _renderer.bounds;
+            Vector3 spawnPosition;
 
-            
-            float yOffset = bounds.center.y + (bounds.extents.y * uiYMultiplier);
+            if (_renderer != null)
+            {
+                Bounds bounds = _renderer.bounds;
+                float yOffset = bounds.center.y + (bounds.extents.y * uiYMultiplier);
+                float zOffset = bounds.extents.z * uiZMultiplier;
+                spawnPosition = transform.position + new Vector3(0f, yOffset, zOffset);
+            }
+            else
+            {
+                spawnPosition = transform.position + fallbackOffset;
+            }
 
-            float zOffset = bounds.extents.z * uiZMultiplier;
-            Vector3 spawnPosition = transform.position + new Vector3(0f, yOffset, zOffset);
             _infoUIInstance = Instantiate(infoUIPrefab, spawnPosition, Quaternion.identity, transform);
-
-
             _infoUIText = _infoUIInstance.GetComponentInChildren<TextMeshProUGUI>();
             _infoUIInstance.SetActive(false);
-        }
-        else
-        {
-            if (_renderer == null) Debug.LogError("GarbageItem needs a Renderer component (or child Renderer) to calculate bounds.");
         }
 
         if (isPooledObject)
         {
-            
             if (interactionCollider != null) interactionCollider.enabled = false;
-            if (targetOutline != null) targetOutline.enabled = false; 
+            if (targetOutline != null) targetOutline.enabled = false;
             this.enabled = false;
         }
         else
         {
-           
             if (interactionCollider != null) interactionCollider.enabled = true;
             if (targetOutline != null)
             {
-                targetOutline.enabled = true; // Always on
+                targetOutline.enabled = true;
                 targetOutline.OutlineColor = Color.white;
             }
             this.enabled = true;

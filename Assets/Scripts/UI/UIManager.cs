@@ -1,11 +1,12 @@
 using System.Collections.Generic;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
+    public static UIManager Instance { get; private set; }
+
     [Header("Health UI")]
     public Slider healthSlider;
 
@@ -20,7 +21,7 @@ public class UIManager : MonoBehaviour
     public Slider pickupCooldownSlider;
 
     [Header("Item Display Config")]
-    [SerializeField] private GameObject itemSlotPrefab; 
+    [SerializeField] private GameObject itemSlotPrefab;
     [SerializeField] private Transform itemContainer;
 
     [Header("Item Popup")]
@@ -28,16 +29,43 @@ public class UIManager : MonoBehaviour
     [SerializeField] private Transform popupParent;
     private ItemPopupUI _currentPopup;
 
-
-    // Dictionary to map Data (ItemSO) to Visuals (ItemSlotUI)
+    [Header("Kill Count UI")]
+    public TextMeshProUGUI killCountText;
 
     private Dictionary<ItemSO, ItemSlotUI> _itemSlots = new Dictionary<ItemSO, ItemSlotUI>();
 
+    private void Awake()
+    {
+        // Initialize the Singleton
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            Instance = this;
+        }
+    }
 
     private void Start()
     {
-       
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnKillCountChanged += UpdateKillCountUI;
+
+            UpdateKillCountUI(GameManager.Instance.KillCount);
+        }
     }
+
+    private void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnKillCountChanged -= UpdateKillCountUI;
+        }
+    }
+
+    // --- UI Update Methods ---
 
     public void UpdateHealth(float currentHealth, float maxHealth)
     {
@@ -57,7 +85,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
-     public void UpdateCarryingCapacity(int currentCapacity, int maxCapacity)
+    public void UpdateCarryingCapacity(int currentCapacity, int maxCapacity)
     {
         if (carryingCapacityText != null)
         {
@@ -115,7 +143,12 @@ public class UIManager : MonoBehaviour
         _currentPopup.Initialize(item.itemName, item.description);
     }
 
-
-
-
+    // This is the listener method called by GameManager
+    private void UpdateKillCountUI(int newCount)
+    {
+        if (killCountText != null)
+        {
+            killCountText.text = $"Kills: {newCount}";
+        }
+    }
 }
