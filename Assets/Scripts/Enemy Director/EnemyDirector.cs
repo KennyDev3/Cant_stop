@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.AI; 
+using UnityEngine.AI;
 using TMPro;
 
 public class EnemyDirector : MonoBehaviour
@@ -25,8 +25,17 @@ public class EnemyDirector : MonoBehaviour
     [SerializeField] private float minSpawnRadius = 6f;
     [SerializeField] private float maxSpawnRadius = 16f;
 
+    // --- NEW WRAPPER CLASS ---
+    [System.Serializable]
+    public class EnemyConfig
+    {
+        public string label = "New Enemy";
+        public EnemyData enemyData;
+        public bool canSpawn = true; 
+    }
+
     [Header("Data")]
-    public List<EnemyData> availableEnemies;
+    public List<EnemyConfig> enemyList;
 
     [Header("UI")]
     [SerializeField] private TextMeshProUGUI creditsText;
@@ -39,7 +48,7 @@ public class EnemyDirector : MonoBehaviour
 
     private float currentCredits;
     private int currentLivingEnemies;
-    private float waveTimer; 
+    private float waveTimer;
 
     private void Awake()
     {
@@ -65,7 +74,9 @@ public class EnemyDirector : MonoBehaviour
 
         UpdateUI();
 
-        float currentRate = baseCreditsPerSecond * DifficultyManager.Instance.CreditMultiplier;
+        // Safety check if DifficultyManager is missing
+        float multiplier = DifficultyManager.Instance != null ? DifficultyManager.Instance.CreditMultiplier : 1f;
+        float currentRate = baseCreditsPerSecond * multiplier;
 
         currentCredits += currentRate * Time.deltaTime;
         waveTimer += Time.deltaTime;
@@ -92,14 +103,19 @@ public class EnemyDirector : MonoBehaviour
     private void AttemptSpawnWave()
     {
         if (currentLivingEnemies >= maxActiveEnemies) return;
-        if (availableEnemies == null || availableEnemies.Count == 0) return;
+        if (enemyList == null || enemyList.Count == 0) return;
 
         int attempts = 0;
 
         while (currentCredits > 0 && currentLivingEnemies < maxActiveEnemies && attempts < 20)
         {
             attempts++;
-            List<EnemyData> affordable = availableEnemies.Where(x => x.spawnCost <= currentCredits).ToList();
+
+            // Filter list by Enabled Checkbox AND Cost
+            List<EnemyData> affordable = enemyList
+                .Where(x => x.canSpawn && x.enemyData != null && x.enemyData.spawnCost <= currentCredits)
+                .Select(x => x.enemyData)
+                .ToList();
 
             if (affordable.Count == 0) break;
 
@@ -110,8 +126,14 @@ public class EnemyDirector : MonoBehaviour
             {
                 currentCredits -= selectedEnemy.spawnCost;
 
-                float hpMult = DifficultyManager.Instance.HpMultiplier;
-                float dmgMult = DifficultyManager.Instance.DamageMultiplier;
+                float hpMult = 1f;
+                float dmgMult = 1f;
+
+                if (DifficultyManager.Instance != null)
+                {
+                    hpMult = DifficultyManager.Instance.HpMultiplier;
+                    dmgMult = DifficultyManager.Instance.DamageMultiplier;
+                }
 
                 GameObject newEnemy = EnemyPooler.Instance.GetEnemy(
                     selectedEnemy,
@@ -156,7 +178,7 @@ public class EnemyDirector : MonoBehaviour
 
         if (timeText != null)
         {
-            float t = DifficultyManager.Instance.TotalRunTime; // FIX 4: Correct property name
+            float t = DifficultyManager.Instance.TotalRunTime;
             int minutes = Mathf.FloorToInt(t / 60);
             int seconds = Mathf.FloorToInt(t % 60);
             timeText.text = string.Format("{0:00}:{1:00}", minutes, seconds);

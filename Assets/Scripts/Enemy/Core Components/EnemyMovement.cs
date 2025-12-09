@@ -39,6 +39,26 @@ public class EnemyMovement : MonoBehaviour
         navMeshAgent.SetDestination(destination);
     }
 
+    public void ExecutePattern(Transform target)
+    {
+        if (enemyBrain.Data.movementPattern != null)
+        {
+            navMeshAgent.speed = this.cachedSpeed;
+            if (navMeshAgent.isStopped) navMeshAgent.isStopped = false;
+
+            enemyBrain.Data.movementPattern.CalculateMovement(
+                navMeshAgent,
+                enemyBrain,
+                target,
+                enemyBrain.Data
+            );
+        }
+        else
+        {
+            MoveTo(target.position);
+        }
+    }
+
     public void Stop()
     {
         if (navMeshAgent == null) return;
