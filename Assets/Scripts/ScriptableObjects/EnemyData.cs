@@ -36,7 +36,21 @@ public class EnemyData : ScriptableObject
     public GameObject bloodVFX;
 
     [Header("Loot")]
-    public GarbageData garbageDataOnDeath; 
+    public GarbageData garbageDataOnDeath;
+
+    [Header("AI Reaction Settings")]
+    [Tooltip("Minimum delay between AI reactions")]
+    public float reactionIntervalMin = 0.08f;
+
+    [Tooltip("Maximum delay between AI reactions")]
+    public float reactionIntervalMax = 0.20f;
+
+    [Header("Erratic Movement Settings")]
+    [Tooltip("How strongly the enemy wiggles/varies when retreating")]
+    public float erraticIntensity = 0.5f;
+
+    [Tooltip("Noise speed for the erratic movement")]
+    public float erraticFrequency = 0.6f;
 
 
 

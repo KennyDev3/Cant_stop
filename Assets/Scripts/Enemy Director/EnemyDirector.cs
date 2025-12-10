@@ -119,7 +119,7 @@ public class EnemyDirector : MonoBehaviour
 
             if (affordable.Count == 0) break;
 
-            EnemyData selectedEnemy = affordable[Random.Range(0, affordable.Count)];
+            EnemyData selectedEnemy = GetWeightedRandomEnemy(affordable);
             Vector3 spawnPos = GetDonutSpawnPosition();
 
             if (spawnPos != Vector3.zero)
@@ -149,6 +149,25 @@ public class EnemyDirector : MonoBehaviour
                 }
             }
         }
+    }
+
+    private EnemyData GetWeightedRandomEnemy(List<EnemyData> list)
+    {
+        float totalWeight = 0f;
+
+        foreach (var e in list)
+            totalWeight += e.selectionWeight;
+
+        float rnd = Random.value * totalWeight;
+
+        foreach (var e in list)
+        {
+            rnd -= e.selectionWeight;
+            if (rnd <= 0f)
+                return e;
+        }
+
+        return list[list.Count - 1]; // fallback
     }
 
     private Vector3 GetDonutSpawnPosition()

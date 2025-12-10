@@ -13,11 +13,11 @@ public class EnemyMovement : MonoBehaviour
         this.enemyBrain = brain;
         navMeshAgent = GetComponent<NavMeshAgent>();
 
-        // SAFETY: Check if Data exists before accessing properties
-        if (enemyBrain.Data != null)
+        if (enemyBrain != null && enemyBrain.Data != null)
         {
             this.cachedSpeed = enemyBrain.Data.moveSpeed;
-            navMeshAgent.speed = this.cachedSpeed;
+            if (navMeshAgent != null)
+                navMeshAgent.speed = this.cachedSpeed;
         }
         else
         {
@@ -27,7 +27,6 @@ public class EnemyMovement : MonoBehaviour
 
     public void MoveTo(Vector3 destination)
     {
-        // Safety check to prevent NREs if init failed
         if (navMeshAgent == null) return;
 
         navMeshAgent.speed = this.cachedSpeed;
@@ -41,22 +40,17 @@ public class EnemyMovement : MonoBehaviour
 
     public void ExecutePattern(Transform target)
     {
-        if (enemyBrain.Data.movementPattern != null)
-        {
-            navMeshAgent.speed = this.cachedSpeed;
-            if (navMeshAgent.isStopped) navMeshAgent.isStopped = false;
+        if (enemyBrain == null || enemyBrain.Data == null) return;
 
-            enemyBrain.Data.movementPattern.CalculateMovement(
-                navMeshAgent,
-                enemyBrain,
-                target,
-                enemyBrain.Data
-            );
-        }
-        else
-        {
-            MoveTo(target.position);
-        }
+        navMeshAgent.speed = this.cachedSpeed;
+        if (navMeshAgent.isStopped) navMeshAgent.isStopped = false;
+
+        enemyBrain.Data.movementPattern.CalculateMovement(
+            navMeshAgent,
+            enemyBrain,
+            target,
+            enemyBrain.Data
+        );
     }
 
     public void Stop()
@@ -67,7 +61,7 @@ public class EnemyMovement : MonoBehaviour
         {
             navMeshAgent.isStopped = true;
             navMeshAgent.velocity = Vector3.zero;
-            navMeshAgent.speed = 0;
+            navMeshAgent.speed = 0f;
         }
     }
 
