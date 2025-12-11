@@ -243,6 +243,7 @@ namespace StarterAssets
                     ApplyGravity();
                     Move();
                     HandleDashInput();
+                    HandleBoostInput();
                     break;
                 case PlayerActivityState.PickingUp:
                     HandlePickingUpState();
@@ -317,40 +318,32 @@ namespace StarterAssets
         {
             float currentMoveSpeed = _stats ? _stats.GetStat(StatType.MoveSpeed) : MoveSpeed;
 
-            float sprintMultiplier = SprintSpeed / MoveSpeed; 
+            float sprintMultiplier = SprintSpeed / MoveSpeed;
             float currentSprintSpeed = currentMoveSpeed * sprintMultiplier;
 
             float targetSpeed;
             bool isOverencumbered = _playerGarbageHandler != null && _playerGarbageHandler.IsOverencumbered;
 
+            bool isBoosting = _playerStamina != null && _playerStamina.IsBoostActive();
+            targetSpeed = isBoosting ? currentSprintSpeed : currentMoveSpeed;
+
             if (isOverencumbered)
-            {
                 targetSpeed = currentMoveSpeed / 2f;
-            }
-            else
-            {
-                bool canSprint = _playerStamina != null ? _playerStamina.CanSprint() : true;
-                targetSpeed = _input.sprint && canSprint ? currentSprintSpeed : currentMoveSpeed;
-            }
 
+            if (_input.move == Vector2.zero)
+                targetSpeed = 0.0f;
 
-            if (_input.move == Vector2.zero) targetSpeed = 0.0f;
-
-            // a reference to the players current horizontal velocity
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
 
             float speedOffset = 0.1f;
             float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
 
-            // accelerate or decelerate to target speed
             if (currentHorizontalSpeed < targetSpeed - speedOffset ||
-            currentHorizontalSpeed > targetSpeed + speedOffset)
+                currentHorizontalSpeed > targetSpeed + speedOffset)
             {
-                // creates curved result rather than a linear one giving a more organic speed change
                 _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude,
-                Time.deltaTime * SpeedChangeRate);
+                    Time.deltaTime * SpeedChangeRate);
 
-                // round speed to 3 decimal places
                 _speed = Mathf.Round(_speed * 1000f) / 1000f;
             }
             else
@@ -361,34 +354,24 @@ namespace StarterAssets
             _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
             if (_animationBlend < 0.01f) _animationBlend = 0f;
 
-            // normalise input direction
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
 
             if (_input.move != Vector2.zero)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg +
                                   _mainCamera.transform.eulerAngles.y;
-                float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity,
-                  RotationSmoothTime);
 
-                // rotate to face input direction relative to camera position
+                float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation,
+                    ref _rotationVelocity, RotationSmoothTime);
+
                 transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
             }
 
-            // Drain stamina if sprinting and moving
-            if (!isOverencumbered && _input.sprint && _input.move != Vector2.zero && _playerStamina != null)
-            {
-                _playerStamina.DrainStamina();
-            }
-
-
             Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
 
-            // move the player
             _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) +
                              new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
-            // update animator if using character
             if (_hasAnimator)
             {
                 _animator.SetFloat(_animIDSpeed, _animationBlend);
@@ -396,7 +379,9 @@ namespace StarterAssets
             }
         }
 
-        // ------------------ NEW DASH LOGIC ------------------
+
+
+        // ------------------  DASH LOGIC ------------------
 
         private void HandleDashInput()
         {
@@ -413,6 +398,21 @@ namespace StarterAssets
                 
             }
         }
+
+        private void HandleBoostInput()
+        {
+            if (_input.sprint) 
+            {
+                if (_playerStamina.TryActivateBoost())
+                {
+                    // Optional VFX hook
+                    // boostTrail?.Play();
+                }
+
+                _input.sprint = false;
+            }
+        }
+
 
         private IEnumerator Dash()
         {

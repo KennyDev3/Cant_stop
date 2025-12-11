@@ -33,6 +33,8 @@ public class EnemyBrain : MonoBehaviour
 
     private float idOffset;
 
+    private bool shouldReact;
+
     public int InstanceID => GetInstanceID();
 
     void Awake()
@@ -48,9 +50,9 @@ public class EnemyBrain : MonoBehaviour
     {
         _data = data;
 
-        if (targeting != null) targeting.Initialize(this);
-        if (movement != null) movement.Initialize(this);
-        if (attackBehaviour != null) attackBehaviour.Initialize(this, _data);
+        targeting.Initialize(this);
+        movement.Initialize(this);
+        attackBehaviour.Initialize(this, _data);
 
         isPlayerPriorityEnemy = Random.value < playerPriorityChance;
         currentState = State.Idle;
@@ -66,60 +68,53 @@ public class EnemyBrain : MonoBehaviour
         reactionTimer = 0f;
     }
 
-    public float GetScaledDamage(float baseDamage)
-    {
-        if (_data == null) return 0f;
-        float multiplier = (_health != null) ? _health.RuntimeDamageMultiplier : 1f;
-        return baseDamage * multiplier;
-    }
-
     void Update()
     {
         if (_data == null) return;
 
         if (Animator != null)
-            Animator.SetFloat("Speed", movement != null ? movement.GetCurrentSpeed() : 0f);
+            Animator.SetFloat("Speed", movement.GetCurrentSpeed());
 
         attackTimer += Time.deltaTime;
         visionCheckTimer += Time.deltaTime;
+
         reactionTimer += Time.deltaTime;
+        shouldReact = reactionTimer >= nextReactionTime;
 
-        if (reactionTimer < nextReactionTime)
-            return;
+        if (shouldReact)
+        {
+            reactionTimer = 0f;
+            nextReactionTime = Random.Range(_data.reactionIntervalMin, _data.reactionIntervalMax);
 
-        reactionTimer = 0f;
-        nextReactionTime = Random.Range(_data.reactionIntervalMin, _data.reactionIntervalMax);
+            if (targeting.CurrentTarget == null)
+                targeting.FindClosestTarget();
+        }
 
         if (visionCheckTimer >= VISION_CHECK_COOLDOWN)
         {
             visionCheckTimer = 0f;
             if (targeting.CurrentTarget == null)
-            {
                 targeting.FindClosestTarget();
-            }
         }
 
         switch (currentState)
         {
             case State.Idle:
-                HandleIdleState();
+                if (targeting.CurrentTarget != null)
+                    currentState = State.Chasing;
                 break;
+
             case State.Chasing:
-                HandleChasingState();
+                HandleChasing();
                 break;
+
             case State.Attacking:
-                HandleAttackingState();
+                HandleAttacking();
                 break;
         }
     }
 
-    private void HandleIdleState()
-    {
-        if (targeting.CurrentTarget != null)
-            currentState = State.Chasing;
-    }
-
-    private void HandleChasingState()
+    void HandleChasing()
     {
         if (targeting.CurrentTarget == null)
         {
@@ -142,14 +137,11 @@ public class EnemyBrain : MonoBehaviour
                 return;
             }
         }
-        else
-        {
-            loseTargetTimer = 0f;
-        }
+        else loseTargetTimer = 0f;
 
-        bool isCooldownReady = attackTimer >= _data.attackCooldown;
+        bool ready = attackTimer >= _data.attackCooldown;
 
-        if (distance <= _data.attackRange && isCooldownReady)
+        if (distance <= _data.attackRange && ready)
         {
             currentState = State.Attacking;
             movement.Stop();
@@ -158,24 +150,27 @@ public class EnemyBrain : MonoBehaviour
 
         if (distance <= _data.attackRange)
         {
-            Vector3 retreatDir = (transform.position - targeting.CurrentTarget.position).normalized;
-
+            Vector3 retreat = (transform.position - targeting.CurrentTarget.position).normalized;
             float noise = Mathf.PerlinNoise(Time.time * _data.erraticFrequency + idOffset, idOffset) - 0.5f;
-            Vector3 perpendicular = Vector3.Cross(Vector3.up, retreatDir);
-            retreatDir += perpendicular * noise * _data.erraticIntensity;
-            retreatDir.Normalize();
-
-            movement.MoveTo(transform.position + retreatDir * 2.5f);
+            Vector3 perp = Vector3.Cross(Vector3.up, retreat);
+            retreat += perp * noise * _data.erraticIntensity;
+            retreat.Normalize();
+            movement.MoveTo(transform.position + retreat * 2.5f);
             return;
         }
 
         if (_data.movementPattern != null)
-            movement.ExecutePattern(targeting.CurrentTarget);
+        {
+            if (shouldReact)
+                movement.ExecutePattern(targeting.CurrentTarget);
+        }
         else
+        {
             movement.MoveTo(targeting.CurrentTarget.position);
+        }
     }
 
-    private void HandleAttackingState()
+    void HandleAttacking()
     {
         if (targeting.CurrentTarget == null)
         {
@@ -183,9 +178,9 @@ public class EnemyBrain : MonoBehaviour
             return;
         }
 
-        Vector3 lookPos = targeting.CurrentTarget.position;
-        lookPos.y = transform.position.y;
-        transform.LookAt(lookPos);
+        Vector3 look = targeting.CurrentTarget.position;
+        look.y = transform.position.y;
+        transform.LookAt(look);
 
         if (!attackBehaviour.IsAttacking)
         {
@@ -219,13 +214,20 @@ public class EnemyBrain : MonoBehaviour
 
     public void StopMovement()
     {
-        if (movement != null) movement.Stop();
+        movement.Stop();
     }
 
     public void ResumeMovement()
     {
-        if (movement != null && targeting.CurrentTarget != null)
+        if (targeting.CurrentTarget != null)
             movement.MoveTo(targeting.CurrentTarget.position);
+    }
+
+    public float GetScaledDamage(float baseDamage)
+    {
+        if (_data == null) return 0f;
+        float mult = _health != null ? _health.RuntimeDamageMultiplier : 1f;
+        return baseDamage * mult;
     }
 
     public void ResetAttackTimer()
