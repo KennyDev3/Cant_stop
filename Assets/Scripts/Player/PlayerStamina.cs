@@ -1,89 +1,67 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-
 public class PlayerStamina : MonoBehaviour
 {
-    [Header("Stamina Settings")]
-    [Tooltip("The base maximum amount of stamina.")]
-    [SerializeField] private float baseMaxStamina = 100f; // Track the base value
-    [Tooltip("The total maximum amount of stamina (Base + Upgrades).")]
-    public float maxStamina;
-    [Tooltip("The current amount of stamina.")]
-    [SerializeField] private float currentStamina;
-    [Tooltip("The rate at which stamina drains per second when sprinting.")]
-    public float staminaDrainRate = 10f;
-    [Tooltip("The rate at which stamina regenerates per second when not sprinting.")]
-    public float staminaRegenRate = 5f;
-    [Tooltip("The delay in seconds before stamina starts regenerating after sprinting.")]
-    public float staminaRegenDelay = 1f;
+    [Header("Boost Settings")]
+    [SerializeField] private float boostDuration = 3f;
+    [SerializeField] private float cooldownDuration = 5f;
 
-    private float staminaRegenTimer;
-    private bool isDraining;
+    private float cooldownTimer;
+    private bool isBoostActive;
+    private float boostTimer;
 
-    [System.Serializable]
-    public class StaminaChangeEvent : UnityEvent<float, float> { }
-    public StaminaChangeEvent onStaminaChanged;
+    public UnityEvent<float, float> onStaminaChanged;
+
+    public bool CanActivateBoost => cooldownTimer >= cooldownDuration;
 
     void Start()
     {
-        maxStamina = baseMaxStamina;
-        currentStamina = maxStamina;
+        cooldownTimer = cooldownDuration;
+        onStaminaChanged.Invoke(cooldownTimer, cooldownDuration);
     }
 
     void Update()
     {
-        if (!isDraining)
+        if (isBoostActive)
         {
-            if (currentStamina < maxStamina)
+            boostTimer -= Time.deltaTime;
+            if (boostTimer <= 0f)
             {
-                if (staminaRegenTimer > 0)
-                {
-                    staminaRegenTimer -= Time.deltaTime;
-                }
-                else
-                {
-                    currentStamina += staminaRegenRate * Time.deltaTime;
-                    currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
-                    onStaminaChanged.Invoke(currentStamina, maxStamina);
-                }
+                isBoostActive = false;
+
+                // VFX can go here (stop)
             }
         }
-        isDraining = false;
-    }
-
-    public bool CanSprint()
-    {
-        return currentStamina > 0;
-    }
-
-     public void DrainStamina()
-    {
-        if (CanSprint())
+        else
         {
-            isDraining = true;
-            staminaRegenTimer = staminaRegenDelay;
-            currentStamina -= staminaDrainRate * Time.deltaTime;
-            currentStamina = Mathf.Clamp(currentStamina, 0f, maxStamina);
-            onStaminaChanged.Invoke(currentStamina, maxStamina);
+            if (cooldownTimer < cooldownDuration)
+            {
+                cooldownTimer += Time.deltaTime;
+                if (cooldownTimer > cooldownDuration)
+                    cooldownTimer = cooldownDuration;
+
+                onStaminaChanged.Invoke(cooldownTimer, cooldownDuration);
+            }
         }
     }
 
-    public void UpgradeMaxStamina(float increaseAmount)
+    public bool TryActivateBoost()
     {
-        // Increase the total max stamina
-        maxStamina += increaseAmount;
+        if (!CanActivateBoost) return false;
 
-        // Optionally, heal the player to the new max or top them off
-        currentStamina = maxStamina;
+        isBoostActive = true;
+        boostTimer = boostDuration;
+        cooldownTimer = 0f;
 
-        onStaminaChanged.Invoke(currentStamina, maxStamina);
-        Debug.Log($"Max Stamina Upgraded to: {maxStamina}");
+        // VFX can go here (play)
+
+        onStaminaChanged.Invoke(cooldownTimer, cooldownDuration);
+        return true;
     }
 
-
-
-
-
-
+    public bool IsBoostActive()
+    {
+        return isBoostActive;
+    }
 }

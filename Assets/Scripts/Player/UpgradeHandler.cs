@@ -101,21 +101,21 @@ public class UpgradeHandler : MonoBehaviour
 
         switch (definition.type)
         {
-            case UpgradeType.MaxStamina:
-                if (playerStamina != null)
-                {
-                    // For stamina, we add the value per level (50) to the base.
-                    // To handle cumulative upgrades, we'll reset and reapply the total effect.
+            //case UpgradeType.MaxStamina:
+            //    if (playerStamina != null)
+            //    {
+            //        // For stamina, we add the value per level (50) to the base.
+            //        // To handle cumulative upgrades, we'll reset and reapply the total effect.
 
-                    // NOTE: This assumes the base MaxStamina is set in the inspector (e.g. 100) 
-                    // and we calculate the total from that base + (valuePerLevel * level).
-                    // Since the current PlayerStamina doesn't track a 'base' vs 'upgraded' value, 
-                    // a simpler approach is to let PlayerStamina handle the additive change.
+            //        // NOTE: This assumes the base MaxStamina is set in the inspector (e.g. 100) 
+            //        // and we calculate the total from that base + (valuePerLevel * level).
+            //        // Since the current PlayerStamina doesn't track a 'base' vs 'upgraded' value, 
+            //        // a simpler approach is to let PlayerStamina handle the additive change.
 
-                    // Additive change:
-                    playerStamina.UpgradeMaxStamina(definition.valuePerLevel);
-                }
-                break;
+            //        // Additive change:
+            //        playerStamina.UpgradeMaxStamina(definition.valuePerLevel);
+            //    }
+            //    break;
             case UpgradeType.PlayerCapacity:
                 if(playerGarbageHandler != null)
                 {
