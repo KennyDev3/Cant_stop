@@ -52,29 +52,33 @@ public class BossWaveAttack : AttackBehaviour
 
         if (_bossData.projectilePrefab != null && target != null)
         {
-            Vector3 targetDirection = target.position - spawnPoint.position;
-            targetDirection.y = 0;
-            targetDirection = targetDirection.normalized;
+            Vector3 targetDir = target.position - spawnPoint.position;
+            targetDir.y = 0;
+            targetDir.Normalize();
 
-            Quaternion projectileRotation = Quaternion.LookRotation(targetDirection);
-            Quaternion zOffset = Quaternion.Euler(0, 0, -90f);
-            Quaternion finalRotation = projectileRotation * zOffset;
+            // Face the player
+            Quaternion faceTarget = Quaternion.LookRotation(targetDir);
+
+            Quaternion rotationOffset = Quaternion.Euler(0, 0, -90f);
+
+            Quaternion finalRot = faceTarget * rotationOffset;
 
             GameObject projectileGO = Instantiate(
                 _bossData.projectilePrefab,
                 spawnPoint.position,
-                finalRotation
+                finalRot
             );
 
             ShockwaveProjectile projectile = projectileGO.GetComponent<ShockwaveProjectile>();
 
             if (projectile != null)
             {
-                float damageToDeal = enemyBrain.GetScaledDamage(_bossData.attackDamage);
-                projectile.Initialize(damageToDeal, _bossData.projectileSpeed);
+                float damage = enemyBrain.GetScaledDamage(_bossData.attackDamage);
+                projectile.Initialize(damage, _bossData.projectileSpeed);
             }
         }
     }
+
 
     public override void AnimationEvent_EndAttack()
     {
