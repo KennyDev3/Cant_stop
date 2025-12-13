@@ -36,6 +36,7 @@ public class EnemyHealth : MonoBehaviour
     [Header("Ragdoll Setup")]
     public Transform ragdollRootBone;
     public Transform adventurerModel;
+    public Collider interactionCollider;
 
     private Rigidbody[] ragdollRigidbodies;
     private Collider[] ragdollColliders;
@@ -184,10 +185,13 @@ public class EnemyHealth : MonoBehaviour
 
         foreach (Collider col in ragdollColliders)
         {
-            if (col.transform != ragdollRootBone)
+            if (interactionCollider != null && col == interactionCollider)
             {
-                col.enabled = false;
+                col.enabled = true;
+                continue;
             }
+
+            col.enabled = false;
         }
     }
 
