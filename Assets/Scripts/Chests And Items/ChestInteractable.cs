@@ -123,15 +123,20 @@ public class ChestInteractable : MonoBehaviour, IInteractable
 
             if (rb)
             {
-                
+                rb.isKinematic = false;
+                rb.useGravity = true;
+                rb.constraints = RigidbodyConstraints.None;
+
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+
                 Vector2 randomDir = Random.insideUnitCircle.normalized;
                 Vector3 throwDirection = new Vector3(randomDir.x, 0f, randomDir.y);
 
-                rb.AddForce(Vector3.up * upForce, ForceMode.Impulse);
-
-                rb.AddForce(throwDirection * sideForce, ForceMode.Impulse);
-
-              
+                rb.AddForce(
+                    Vector3.up * upForce + throwDirection * sideForce,
+                    ForceMode.Impulse
+                );
             }
         }
     }

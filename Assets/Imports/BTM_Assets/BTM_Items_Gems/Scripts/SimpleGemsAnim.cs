@@ -5,29 +5,33 @@ namespace Benjathemaker
 {
     public class SimpleGemsAnim : MonoBehaviour
     {
+        [Header("Rotation")]
         public bool isRotating = false;
         public bool rotateX = false;
         public bool rotateY = false;
         public bool rotateZ = false;
         public float rotationSpeed = 90f; // Degrees per second
 
+        [Header("Floating")]
         public bool isFloating = false;
         public bool useEasingForFloating = false; // Separate toggle for floating ease
-        public float floatHeight = 1f; // Max height displacement
+        public float floatHeight = 1f;            // Max height displacement
         public float floatSpeed = 1f;
+
         private Vector3 initialPosition;
         private float floatTimer;
 
+        [Header("Scaling")]
         private Vector3 initialScale;
         public Vector3 startScale;
         public Vector3 endScale;
 
         public bool isScaling = false;
         public bool useEasingForScaling = false; // Separate toggle for scaling ease
-        public float scaleLerpSpeed = 1f; // Speed of scaling transition
+        public float scaleLerpSpeed = 1f;        // Speed of scaling transition
         private float scaleTimer;
 
-        void Start()
+        private void Start()
         {
             initialScale = transform.localScale;
             initialPosition = transform.position;
@@ -37,7 +41,7 @@ namespace Benjathemaker
             endScale = initialScale * (endScale.magnitude / startScale.magnitude);
         }
 
-        void Update()
+        private void Update()
         {
             if (isRotating)
             {
@@ -46,23 +50,28 @@ namespace Benjathemaker
                     rotateY ? 1 : 0,
                     rotateZ ? 1 : 0
                 );
+
                 transform.Rotate(rotationVector * rotationSpeed * Time.deltaTime);
             }
 
             if (isFloating)
             {
                 floatTimer += Time.deltaTime * floatSpeed;
-                float t = Mathf.PingPong(floatTimer, 1f);
-                if (useEasingForFloating) t = EaseInOutQuad(t);
 
-                transform.position = initialPosition + new Vector3(0, t * floatHeight, 0);
+                float t = Mathf.PingPong(floatTimer, 1f);
+                if (useEasingForFloating)
+                {
+                    t = EaseInOutQuad(t);
+                }
+
+                transform.position = initialPosition + new Vector3(0f, t * floatHeight, 0f);
             }
 
             if (isScaling)
             {
                 scaleTimer += Time.deltaTime * scaleLerpSpeed;
-                float t = Mathf.PingPong(scaleTimer, 1f); // Oscillates between 0 and 1
 
+                float t = Mathf.PingPong(scaleTimer, 1f); // Oscillates between 0 and 1
                 if (useEasingForScaling)
                 {
                     t = EaseInOutQuad(t);
@@ -72,10 +81,11 @@ namespace Benjathemaker
             }
         }
 
-        float EaseInOutQuad(float t)
+        private float EaseInOutQuad(float t)
         {
-            return t < 0.5f ? 2 * t * t : 1 - Mathf.Pow(-2 * t + 2, 2) / 2;
+            return t < 0.5f
+                ? 2f * t * t
+                : 1f - Mathf.Pow(-2f * t + 2f, 2f) / 2f;
         }
     }
 }
-

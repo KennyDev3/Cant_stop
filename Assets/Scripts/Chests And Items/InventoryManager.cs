@@ -1,9 +1,12 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System;
 
 
 public class InventoryManager : MonoBehaviour
 {
+    public event Action OnItemPickedUp;
+
     // Debugger to help spawn with items
     [System.Serializable]
     public struct DebugItemEntry
@@ -62,12 +65,14 @@ public class InventoryManager : MonoBehaviour
 
        
         RecalculateAllStats();
+
     }
     // ================================================================ DEBUGGING
 
     public void AddItem(ItemSO item)
     {
-       
+
+        OnItemPickedUp?.Invoke();
 
         // 1. Add to dictionary
         if (_inventory.ContainsKey(item))
