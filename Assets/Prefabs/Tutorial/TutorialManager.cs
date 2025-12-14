@@ -15,8 +15,9 @@ public class TutorialManager : MonoBehaviour
         Combat,
         PickupEnemy,
         DisposeEnemy,
+        CombatWave,
+        DodgeBoost,
         TurretIntro,  
-        CombatWave,    
         LootChest,     
         Finished       
     }
@@ -222,7 +223,46 @@ public class TutorialManager : MonoBehaviour
             yield return new WaitForSeconds(1.0f);
         }
 
-        // ================= PHASE 9: TURRET INTRO =================
+
+
+        // ================= PHASE 9: COMBAT WAVE =================
+        if (startingPhase <= TutorialPhase.CombatWave)
+        {
+            SetUI("WARNING: Hostiles Detected.\n Run For your life.");
+
+            // Ensure capabilities
+            EnableCombatAbilities();
+            if (turretScript) turretScript.enabled = false;
+
+
+            _waveEnemiesKilled = 0;
+            int targetKills = combatWaveEnemies.Length;
+
+            foreach (var enemy in combatWaveEnemies) enemy.SetActive(true);
+
+
+            yield return new WaitForSeconds(3f);
+        }
+
+        // ================= PHASE 10: Dodge % Boost =================
+        if (startingPhase <= TutorialPhase.DodgeBoost)
+
+        {
+            EnableCombatAbilities();
+            if (turretScript) turretScript.enabled = false;
+
+
+            SetUI("Press 'Spacebar' to Dodge, Press 'Shift' for a speed boost ");
+
+            yield return new WaitForSeconds(6f);
+
+            ShowSuccess();
+            yield return new WaitForSeconds(1.0f);
+        }
+                
+
+
+        // ================= PHASE 11: TURRET INTRO =================
         if (startingPhase <= TutorialPhase.TurretIntro)
         {
             EnableCombatAbilities();
@@ -231,31 +271,21 @@ public class TutorialManager : MonoBehaviour
 
             if (turretScript) turretScript.enabled = true;
 
-            yield return new WaitForSeconds(5.0f); // Wait 6 seconds
+            yield return new WaitForSeconds(3.0f); 
+
+            int targetKills = combatWaveEnemies.Length;
+            yield return new WaitUntil(() => _waveEnemiesKilled >= targetKills);
+
 
             ShowSuccess();
             yield return new WaitForSeconds(1.0f);
         }
 
-        // ================= PHASE 10: COMBAT WAVE =================
-        if (startingPhase <= TutorialPhase.CombatWave)
-        {
-            SetUI("WARNING: Hostiles Detected.\nEliminate all targets.");
 
-            // Ensure capabilities
-            if (turretScript) turretScript.enabled = true;
-            EnableCombatAbilities();
 
-            _waveEnemiesKilled = 0;
-            int targetKills = combatWaveEnemies.Length;
 
-            foreach (var enemy in combatWaveEnemies) enemy.SetActive(true);
 
-            yield return new WaitUntil(() => _waveEnemiesKilled >= targetKills);
-
-            ShowSuccess();
-            yield return new WaitForSeconds(1.5f);
-        }
+       
 
         // ================= PHASE 11: LOOT CHEST =================
         if (startingPhase <= TutorialPhase.LootChest)
