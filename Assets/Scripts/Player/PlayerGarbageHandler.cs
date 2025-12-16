@@ -35,6 +35,13 @@ public class PlayerGarbageHandler : MonoBehaviour
     private bool _isCharging = false;
     private float _chargeStartTime = 0f;
 
+    [Header("Audio")]
+    [SerializeField] SoundDef singleGarbagePickUpSound;
+    [SerializeField] SoundDef garbageAddedToIventorySound;
+    [SerializeField] SoundDef areaOfEffectPickupSound;
+    [SerializeField] SoundDef throwGarbageSound;
+
+
     [Header("--- DEBUGGING ---")]
     [Tooltip("Enable to use debug keys and features below.")]
     [SerializeField] private bool enableDebugCheats = true;
@@ -187,6 +194,8 @@ public class PlayerGarbageHandler : MonoBehaviour
 
             float fullnessRatio = (float)_currentCapacity / maxCapacity;
 
+            SoundManager.Instance.Play(throwGarbageSound, transform.position);
+
             Debug.Log($"<color=yellow>[Physics] Launching Bundle! Force: {calculatedForce} | Dir: {finalDir}</color>");
 
             bundleScript.InitializeBundle(_carriedGarbage, finalDir, calculatedForce, fullnessRatio);
@@ -206,6 +215,8 @@ public class PlayerGarbageHandler : MonoBehaviour
         _currentCapacity += data.capacityCost;
         _carriedGarbage.Add(data);
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+        SoundManager.Instance.Play(garbageAddedToIventorySound, transform.position);
+
 
         Debug.Log($"Collected {data.itemName}. Current capacity: {_currentCapacity}/{maxCapacity}");
 
@@ -229,6 +240,8 @@ public class PlayerGarbageHandler : MonoBehaviour
         if (_playerController.StartPickUp(false))
         {
             _currentItemToCollect = garbageItem;
+            SoundManager.Instance.Play(singleGarbagePickUpSound, transform.position);
+
             // Debug.Log($"Initiated pickup sequence for {data.itemName}.");
             return true;
         }
@@ -251,6 +264,8 @@ public class PlayerGarbageHandler : MonoBehaviour
     public bool TryInstantCollect(GarbageItem item)
     {
         GarbageData data = item.GetGarbageData();
+
+        SoundManager.Instance.Play(areaOfEffectPickupSound, transform.position);    
 
         if (playerStrength < data.garbageTier)
         {
@@ -277,6 +292,8 @@ public class PlayerGarbageHandler : MonoBehaviour
         _currentCapacity += bundleWeight;
 
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+
+        SoundManager.Instance.Play(singleGarbagePickUpSound, transform.position);
         Debug.Log($"Picked up bundle worth {bundleWeight} weight.");
 
         return true;

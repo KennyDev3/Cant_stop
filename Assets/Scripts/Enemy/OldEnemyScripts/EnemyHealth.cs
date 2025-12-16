@@ -44,6 +44,9 @@ public class EnemyHealth : MonoBehaviour
     private SkinnedMeshRenderer _meshRenderer;
     private MaterialPropertyBlock _propBlock;
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef enemyHitSound; 
+
     private static readonly int DissolveID = Shader.PropertyToID("_Dissolve");
     private static readonly int EmissionColorID = Shader.PropertyToID("_EmissionColor");
 
@@ -309,6 +312,8 @@ public class EnemyHealth : MonoBehaviour
         currentHealth -= damage;
         StartFlash(meshHitFlashDuration);
         PlayHitEffect(hitPoint);
+
+        SoundManager.Instance.Play(enemyHitSound, transform.position);
 
         if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, finalMaxHealth);
         if (enemyBrain != null) enemyBrain.PlayHitAnimation();

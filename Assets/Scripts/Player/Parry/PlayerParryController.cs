@@ -24,10 +24,13 @@ public class PlayerParryController : MonoBehaviour
     [Tooltip("Target time scale (0.0 = Stopped, 1.0 = Normal)")]
     [SerializeField][Range(0f, 1f)] private float _hitStopTimeScale = 0.1f;
 
-        [SerializeField] private StarterAssetsInputs _input;
+    [SerializeField] private StarterAssetsInputs _input;
     [SerializeField] private GameObject _parryShieldVisual; 
     [SerializeField] private ParticleSystem _parryParticles;
     [SerializeField] private GameObject _successVFXPrefab;
+
+    [Header("Audio")]
+    [SerializeField] SoundDef parrySound;
 
 
         [Header("Events")]
@@ -97,6 +100,9 @@ public class PlayerParryController : MonoBehaviour
     public void OnSuccessfulParry(Vector3 impactPosition)
     {
             Debug.Log("Parry Successful!");
+
+            SoundManager.Instance.Play(parrySound, transform.position);
+
 
             StopAllCoroutines();
             _isParrying = false;

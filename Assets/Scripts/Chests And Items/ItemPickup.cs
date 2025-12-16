@@ -9,6 +9,10 @@ public class ItemPickup : MonoBehaviour
     private Rigidbody _rb;
     private GemIdleAnim _anim;
 
+    [SerializeField] SoundDef itemPickupSound;
+
+
+
     private void Awake()
     {
         _rb = GetComponent<Rigidbody>();
@@ -60,6 +64,8 @@ public class ItemPickup : MonoBehaviour
             var inventory = other.GetComponent<InventoryManager>();
             if (inventory != null)
             {
+                SoundManager.Instance.Play(itemPickupSound, transform.position);
+
                 inventory.AddItem(_itemData);
                 Destroy(gameObject);
             }

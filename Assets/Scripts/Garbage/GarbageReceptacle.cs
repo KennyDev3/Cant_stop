@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-
 public class GarbageReceptacle : MonoBehaviour
 {
     [Header("Processing Settings")]
@@ -16,6 +15,12 @@ public class GarbageReceptacle : MonoBehaviour
     [SerializeField] private GameObject floatingTextPrefab;
     [SerializeField] private Transform textSpawnPoint;
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef processingGarbageSound;
+    [SerializeField] private SoundDef processingMoneySound; 
+    [Tooltip("How much the pitch increases per pulse (e.g., 0.15 or 0.2)")]
+    [SerializeField] private float pitchStep = 0.2f;
+
     [Header("References")]
     [SerializeField] private string playerTag = "Player";
 
@@ -26,8 +31,11 @@ public class GarbageReceptacle : MonoBehaviour
         GarbageBundle bundle = other.GetComponent<GarbageBundle>();
         if (bundle != null && !_pendingBundles.ContainsKey(bundle))
         {
+
             Coroutine routine = StartCoroutine(ProcessBundleRoutine(bundle));
             _pendingBundles.Add(bundle, routine);
+
+            SoundManager.Instance.Play(processingGarbageSound, transform.position);
         }
     }
 
@@ -38,17 +46,13 @@ public class GarbageReceptacle : MonoBehaviour
         {
             if (_pendingBundles[bundle] != null) StopCoroutine(_pendingBundles[bundle]);
             _pendingBundles.Remove(bundle);
-
-
         }
     }
 
     private IEnumerator ProcessBundleRoutine(GarbageBundle bundle)
     {
         int totalValue = bundle.GetTotalValue();
-
         int valuePerPulse = Mathf.CeilToInt((float)totalValue / pulses);
-
         float timePerPulse = totalProcessTime / pulses;
 
         for (int i = 1; i <= pulses; i++)
@@ -57,16 +61,22 @@ public class GarbageReceptacle : MonoBehaviour
 
             if (bundle == null) break;
 
+            // Visuals & Math
             float progress = (float)i / pulses;
             float targetSizeParams = 1f - progress;
 
             bundle.ShrinkToPercentage(targetSizeParams);
-
-            // 2. Award Partial Money & Show Text
             GivePlayerMoney(valuePerPulse);
             SpawnFloatingText(valuePerPulse);
 
-            // Optional: Play Sound Pulse Here
+            // Audio 
+            if (processingMoneySound != null)
+            {
+                
+                float currentPitch = 1.0f + ((i - 1) * pitchStep);
+
+                SoundManager.Instance.Play(processingMoneySound, transform.position, currentPitch);
+            }
         }
 
         // Cleanup
@@ -91,7 +101,6 @@ public class GarbageReceptacle : MonoBehaviour
     {
         if (floatingTextPrefab == null) return;
 
-        // Use spawn point if assigned, otherwise use own position + up
         Vector3 spawnPos = textSpawnPoint != null ? textSpawnPoint.position : transform.position + Vector3.up;
 
         GameObject textObj = Instantiate(floatingTextPrefab, spawnPos, Quaternion.identity);
@@ -101,6 +110,5 @@ public class GarbageReceptacle : MonoBehaviour
         {
             textScript.Initialize($"+{amount}");
         }
-
     }
 }

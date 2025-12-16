@@ -40,9 +40,14 @@ namespace StarterAssets
         [Tooltip("Acceleration and deceleration")]
         public float SpeedChangeRate = 10.0f;
 
+        [Header("Audio")]
         public AudioClip LandingAudioClip;
         public AudioClip[] FootstepAudioClips;
         [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
+
+        [SerializeField] private SoundDef dashSound;
+
+
 
         [Space(10)]
         [Tooltip("The character uses its own gravity value. The engine default is -9.81f")]
@@ -94,6 +99,7 @@ namespace StarterAssets
 
         [Tooltip("For locking the camera position on all axis")]
         public bool LockCameraPosition = false;
+
 
 
 
@@ -392,6 +398,8 @@ namespace StarterAssets
 
                 if (_dashCooldownTimer <= 0.0f)
                 {
+                    SoundManager.Instance.Play(dashSound, transform.position);
+
                     StartCoroutine(Dash());
                 }
 

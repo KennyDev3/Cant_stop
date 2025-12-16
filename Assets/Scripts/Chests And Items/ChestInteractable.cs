@@ -28,6 +28,9 @@ public class ChestInteractable : MonoBehaviour, IInteractable
     [SerializeField] private Animator chestAnimator;
     private Outline _outline;
 
+    [SerializeField] private SoundDef chestPurchasedSound;
+
+
 
     private bool _isOpen = false;
 
@@ -73,6 +76,8 @@ public class ChestInteractable : MonoBehaviour, IInteractable
             if (wallet.Spend(cost))
             {
                 OpenChest();
+                SoundManager.Instance.Play(chestPurchasedSound, transform.position);
+
             }
             else
             {
