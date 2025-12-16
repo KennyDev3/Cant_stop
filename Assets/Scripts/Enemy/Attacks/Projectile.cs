@@ -4,9 +4,13 @@ using UnityEngine;
 public class Projectile : MonoBehaviour, IParriable
 {
     private float damage;
-    private float moveSpeed; 
+    private float moveSpeed;
 
-    
+    [Header("Audio")]
+
+    [SerializeField] private SoundDef enemyHitFromParrySound;
+
+
     private Rigidbody rb;
     private bool _isParried = false;
 
@@ -65,6 +69,7 @@ public class Projectile : MonoBehaviour, IParriable
             var enemyHealth = other.GetComponent<EnemyHealth>();
             if (enemyHealth) enemyHealth.TakeDamage(damage);
 
+            SoundManager.Instance.Play(enemyHitFromParrySound, transform.position);
             Debug.Log("Reflected projectile hit an enemy!");
             Destroy(gameObject);
         }

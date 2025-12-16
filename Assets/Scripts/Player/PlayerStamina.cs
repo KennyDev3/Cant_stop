@@ -10,6 +10,10 @@ public class PlayerStamina : MonoBehaviour
     [Header("Boost VFX")]
     [SerializeField] private TrailRenderer boostTrail;
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef boostSound;
+
+
     private float cooldownTimer;
     private bool isBoostActive;
     private float boostTimer;
@@ -72,6 +76,8 @@ public class PlayerStamina : MonoBehaviour
         // VFX can go here (play)
         if (boostTrail != null)
             boostTrail.emitting = true;
+
+        SoundManager.Instance.Play(boostSound, transform.position);
 
         onStaminaChanged.Invoke(cooldownTimer, cooldownDuration);
         return true;

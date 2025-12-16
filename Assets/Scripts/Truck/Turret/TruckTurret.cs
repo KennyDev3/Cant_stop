@@ -45,9 +45,18 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
     private Collider currentTargetCollider;
     private float fireTimer;
 
+    [Header("Turret Audio")]
+    [SerializeField] SoundDef turretOneShot;
+
+
     [Header("Turret Stats")]
     public float _turretDamage;
     public float _turretFireRate;
+
+
+
+
+
 
     public static event Action<Vector3, Vector3> OnTurretShoot;
 
@@ -248,9 +257,11 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
             fireTimer = 0f;
             Debug.Log($"<color=cyan>{gameObject.name} firing at {currentTarget.name}. Angle difference: {angle:F2} degrees.</color>");
 
-            PlayMuzzleFlash();              // 1. Play Muzzle VFX
-            EjectCasing();                 // 2. Eject Casing
-            PerformHitscanShot(targetDir);// 3. Perform Hitscan
+            PlayMuzzleFlash();                                                                      // 1. Play Muzzle VFX
+            EjectCasing();                                                                         // 2. Eject Casing
+            PerformHitscanShot(targetDir);                                                        // 3. Perform Hitscan
+            SoundManager.Instance.Play(turretOneShot, transform.position);                       // 4. Play one shot sound
+
 
 
 

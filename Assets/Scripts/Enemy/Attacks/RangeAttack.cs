@@ -4,9 +4,15 @@ public class RangeAttack : AttackBehaviour
 {
     private RangedEnemyData _rangedData; // Injected
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef plasmaShotSound;
+
+
     [Tooltip("The transform where the projectile will be instantiated.")]
     public Transform projectileSpawnPoint;
     public GameObject preAttackVFXPrefab;
+
+
 
     public override void Initialize(EnemyBrain brain, EnemyData data)
     {
@@ -26,6 +32,7 @@ public class RangeAttack : AttackBehaviour
     {
         IsAttacking = true;
         enemyBrain.Animator.SetTrigger("Attack");
+
     }
 
     public void AnimationEvent_FireProjectile()
@@ -47,6 +54,9 @@ public class RangeAttack : AttackBehaviour
                 projectileSpawnPoint.position,
                 projectileRotation
             );
+
+            SoundManager.Instance.Play(plasmaShotSound, transform.position);
+
 
             Projectile projectile = projectileGO.GetComponent<Projectile>();
 
