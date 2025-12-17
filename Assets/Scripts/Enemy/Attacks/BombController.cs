@@ -16,6 +16,11 @@ public class BombController : MonoBehaviour
     public GameObject radiusIndicator; 
     public GameObject explosionVFX;
 
+    [Header("Audio")]
+    [SerializeField] SoundDef bombCountdownBeep;
+    [SerializeField] SoundDef BombThrowEnemyBombExplosionSound;
+
+
     private Rigidbody rb;
     private bool isArmed = false;
 
@@ -70,9 +75,11 @@ public class BombController : MonoBehaviour
 
         for (int i = 0; i < flashCount; i++)
         {
+
             if (radiusIndicator != null)
             {
                 radiusIndicator.SetActive(true);
+                SoundManager.Instance.Play(bombCountdownBeep, transform.position);
             }
             yield return new WaitForSeconds(flashInterval);
 
@@ -91,6 +98,7 @@ public class BombController : MonoBehaviour
         if (explosionVFX != null)
         {
             Instantiate(explosionVFX, transform.position, Quaternion.identity);
+            SoundManager.Instance.Play(BombThrowEnemyBombExplosionSound, transform.position);   
         }
 
         Collider[] colliders = Physics.OverlapSphere(transform.position, explosionRadius);

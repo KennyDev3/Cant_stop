@@ -5,6 +5,10 @@ public class GroundAOEAttack : AttackBehaviour
 {
     private FlameAOEEnemyData _flameData; // Injected
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef fireAOESpellCastChantSound;
+
+
     [Header("AOE Settings")]
     public int burstCount = 3;
     public float timeBetweenBursts = 0.5f;
@@ -12,6 +16,7 @@ public class GroundAOEAttack : AttackBehaviour
     [Header("Targeting")]
     public float minRadiusFromPlayer = 2.0f;
     public float maxRadiusFromPlayer = 5.0f;
+
 
     public override void Initialize(EnemyBrain brain, EnemyData data)
     {
@@ -31,6 +36,8 @@ public class GroundAOEAttack : AttackBehaviour
     {
         IsAttacking = true;
         enemyBrain.Animator.SetTrigger("Attack");
+
+        SoundManager.Instance.Play(fireAOESpellCastChantSound, transform.position);
     }
 
     public void AnimationEvent_SpawnFlames()

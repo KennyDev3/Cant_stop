@@ -35,6 +35,9 @@ public class PlayerHealth : MonoBehaviour
     public float shakeIntensity = 2f;
     public float shakeTime = 0.2f;
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef playerGetsHitSound;
+
     private float _startingIntensity;
     private CinemachineBasicMultiChannelPerlin _perlin;
 
@@ -88,6 +91,8 @@ public class PlayerHealth : MonoBehaviour
         onHealthChanged.Invoke(currentHealth, maxHealth);
 
         TriggerDamageFlash();
+
+        SoundManager.Instance.Play(playerGetsHitSound, transform.position);
 
 
 
