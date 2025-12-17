@@ -8,6 +8,9 @@ public class BombThrowerAttack : AttackBehaviour
     public Transform launchPoint;
     public GameObject preAttackVFXPrefab;
 
+    [Header("Audio")]
+    [SerializeField] SoundDef BombEnemyThrowSound;
+
     public override void Initialize(EnemyBrain brain, EnemyData data)
     {
         base.Initialize(brain, data);
@@ -50,6 +53,8 @@ public class BombThrowerAttack : AttackBehaviour
             {
                 float damageToDeal = enemyBrain.GetScaledDamage(_bombData.attackDamage);
                 bombController.Initialize(damageToDeal);
+                SoundManager.Instance.Play(BombEnemyThrowSound, transform.position);
+
             }
 
             if (bombRb != null)

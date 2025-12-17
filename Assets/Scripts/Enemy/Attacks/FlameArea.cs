@@ -3,10 +3,15 @@ using UnityEngine;
 
 public class FlameArea : MonoBehaviour
 {
+    [Header("Audio")]
+    [SerializeField] private SoundDef flameAOEFireSound;
+    [SerializeField] private SoundDef playerHurtFromAOEFireSound;
+
     [Header("Settings")]
     private float damagePerTick;
     private float tickRate;
     private float lifeTime;
+
 
     public void Initialize(float damageAmount, float ticks,float duration)
     {
@@ -18,6 +23,7 @@ public class FlameArea : MonoBehaviour
 
     private void Start()
     {
+        SoundManager.Instance.Play(flameAOEFireSound, transform.position);
         // Automatically destroy the fire after its lifetime
         Destroy(gameObject, lifeTime);
     }
@@ -48,6 +54,7 @@ public class FlameArea : MonoBehaviour
         while (targetHealth != null && targetHealth.gameObject.activeSelf)
         {
             targetHealth.TakeDamage(damagePerTick);
+            SoundManager.Instance.Play(playerHurtFromAOEFireSound, transform.position);
 
             // Optional: Apply visual feedback (Camera shake, red flash) here
 

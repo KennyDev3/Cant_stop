@@ -6,7 +6,11 @@ public class GroundPoundAttack : AttackBehaviour
     [Header("Ground Pound Settings")]
     public float attackRadius = 3f;
     public float jumpForwardDistance = 2f; 
-    public float jumpForwardDuration = 1f; 
+    public float jumpForwardDuration = 1f;
+
+    [Header("Audio")]
+    [SerializeField] private SoundDef groundPoundEnemyJumpSound;
+    [SerializeField] private SoundDef groundPoundEnemySmashSound;
 
     [Header("Visuals")]
     public GameObject attackIndicatorPrefab;
@@ -88,6 +92,7 @@ public class GroundPoundAttack : AttackBehaviour
         lungeTimer = 0f;
         isLunging = true;
         hasDealtDamage = false;
+        SoundManager.Instance.Play(groundPoundEnemyJumpSound, transform.position);
     }
 
     
@@ -99,6 +104,8 @@ public class GroundPoundAttack : AttackBehaviour
 
     public void AnimationEvent_DealDamage()
     {
+        SoundManager.Instance.Play(groundPoundEnemySmashSound, transform.position);
+
         if (hasDealtDamage) return;
 
         if (attackIndicatorPrefab != null)
@@ -118,6 +125,7 @@ public class GroundPoundAttack : AttackBehaviour
                 {
                     float damageToDeal = enemyBrain.GetScaledDamage(baseData.attackDamage);
                     health.TakeDamage(damageToDeal);
+
                 }
             }
         }

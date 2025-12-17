@@ -9,6 +9,9 @@ public class BossWaveAttack : AttackBehaviour
     public GameObject preAttackVFXPrefab;
     public bool aimAtPlayer = true;
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef shockWaveAttackSound;
+
     public override void Initialize(EnemyBrain brain, EnemyData data)
     {
         base.Initialize(brain, data);
@@ -75,6 +78,8 @@ public class BossWaveAttack : AttackBehaviour
             {
                 float damage = enemyBrain.GetScaledDamage(_bossData.attackDamage);
                 projectile.Initialize(damage, _bossData.projectileSpeed);
+
+                SoundManager.Instance.Play(shockWaveAttackSound, transform.position );
             }
         }
     }

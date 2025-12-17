@@ -136,11 +136,7 @@ public class SoundManager : MonoBehaviour
     {
         if (soundDef.useCooldown && !soundDef.useStagger)
         {
-            if (soundDef.lastPlayedTime > Time.unscaledTime)
-            {
-                soundDef.lastPlayedTime = 0f;
-            }
-
+            if (soundDef.lastPlayedTime > Time.unscaledTime) soundDef.lastPlayedTime = 0f;
             if (Time.time - soundDef.lastPlayedTime < soundDef.cooldownTime) return;
             soundDef.lastPlayedTime = Time.time;
         }
@@ -149,8 +145,14 @@ public class SoundManager : MonoBehaviour
         if (source == null) return;
 
         source.transform.position = position;
+
         source.clip = soundDef.GetRandomClip();
         source.outputAudioMixerGroup = soundDef.mixerGroup;
+
+        source.spatialBlend = soundDef.spatialBlend;
+        source.minDistance = soundDef.minDistance;
+        source.maxDistance = soundDef.maxDistance;
+        source.rolloffMode = soundDef.rolloffMode;
 
         float finalVolume = soundDef.volume + Random.Range(-soundDef.volumeRandomness, soundDef.volumeRandomness);
         float finalPitch;

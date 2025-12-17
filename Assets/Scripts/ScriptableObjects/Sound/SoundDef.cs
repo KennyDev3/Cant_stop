@@ -14,9 +14,17 @@ public class SoundDef : ScriptableObject
     [Range(0f, 1f)] public float volume = 1f;
     [Range(0.1f, 3f)] public float pitch = 1f;
 
+    [Header("3D Settings")]
+    [Range(0f, 1f)] public float spatialBlend = 0.8f; 
+    public float minDistance = 2f;  
+    public float maxDistance = 25f; 
+    public AudioRolloffMode rolloffMode = AudioRolloffMode.Linear;
+
     [Header("Randomization")]
     [Range(0f, 0.5f)] public float volumeRandomness = 0.05f;
     [Range(0f, 0.5f)] public float pitchRandomness = 0.05f;
+
+
 
     [Header("Spam Prevention")]
     public bool useCooldown = false;
