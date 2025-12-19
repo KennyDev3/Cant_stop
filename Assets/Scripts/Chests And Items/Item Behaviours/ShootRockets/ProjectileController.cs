@@ -21,6 +21,8 @@ public class ProjectileController : MonoBehaviour
     private float _damage;
     private float _radius;
 
+    private SoundDef _explosionSound;
+
     
 
     // --- VFX ---
@@ -34,12 +36,13 @@ public class ProjectileController : MonoBehaviour
         }
     }
 
-    public void Initialize(float damage, float radius, float speedVal, LayerMask layer)
+    public void Initialize(float damage, float radius, float speedVal, LayerMask layer, SoundDef sound)
     {
         _damage = damage;
         _radius = radius;
         speed = speedVal; 
         _damageLayer = layer;
+        _explosionSound = sound;
     }
 
     private void Update()
@@ -89,6 +92,7 @@ public class ProjectileController : MonoBehaviour
 
         
         DealAreaDamage();
+        SoundManager.Instance.Play(_explosionSound, transform.position);
     }
 
     private void DealAreaDamage()

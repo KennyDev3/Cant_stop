@@ -19,6 +19,9 @@ public class PulsingAuraItemSO : ItemSO
     public float intervalReductionPerStack = 0.1f;
     public float minInterval = 0.5f;
 
+    [Header("Audio")]
+    public SoundDef hitSound;
+
     public override void ApplyEffect(StatController targetStats, int stackCount)
     {
         PulsingAuraBehavior behavior = targetStats.GetComponent<PulsingAuraBehavior>();
@@ -35,7 +38,8 @@ public class PulsingAuraItemSO : ItemSO
             activeDuration,
             baseDamage, damagePerStack,
             baseRadius, radiusPerStack,
-            baseInterval, intervalReductionPerStack, minInterval
+            baseInterval, intervalReductionPerStack, minInterval,
+            hitSound
         );
     }
 }

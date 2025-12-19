@@ -1,19 +1,18 @@
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "New Rotating Orb Item", menuName = "Game/Items/Rotating Orb")]
-
 public class RotatingOrbItemSO : ItemSO
 {
     [Header("Orb Specifics")]
-    [Tooltip("The actual sphere/fireball that rotates around the player")]
     public GameObject orbProjectilePrefab;
-
-    [Header("Orb Specifics")]
     public float baseDamage = 10f;
-    public float damageScaling = 0.2f; // Damage Increase Per Stack 20% 
+    public float damageScaling = 0.2f;
     public float orbitRadius = 3f;
-    public float rotationSpeed = 100f; // Degrees per second
+    public float rotationSpeed = 100f;
     public LayerMask enemyLayer;
+
+    [Header("Audio")]
+    public SoundDef hitSound;
 
     public override void ApplyEffect(StatController targetStats, int stackCount)
     {
@@ -27,8 +26,8 @@ public class RotatingOrbItemSO : ItemSO
             damageScaling,
             orbitRadius,
             rotationSpeed,
-            enemyLayer
+            enemyLayer,
+            hitSound 
         );
     }
-
 }

@@ -20,6 +20,9 @@ public class PulsingAuraBehavior : MonoBehaviour, IStatReceiver
     [SerializeField] private float _finalRadius;
     [SerializeField] private float _finalInterval;
 
+    [Header("Audio")]
+    private SoundDef pulsingHitSound;
+
     // CONSTANTS
     private const float VISUAL_THICKNESS = 0.02f;
     private const float DAMAGE_HEIGHT = 10.0f;
@@ -36,7 +39,7 @@ public class PulsingAuraBehavior : MonoBehaviour, IStatReceiver
         float duration,
         float bDmg, float sDmg,
         float bRad, float sRad,
-        float bInt, float sInt, float minInt)
+        float bInt, float sInt, float minInt, SoundDef sound)
     {
         // 1. Store Config
         _stackCount = stacks;
@@ -47,6 +50,9 @@ public class PulsingAuraBehavior : MonoBehaviour, IStatReceiver
         _baseDmg = bDmg; _dmgPerStack = sDmg;
         _baseRad = bRad; _radPerStack = sRad;
         _baseInt = bInt; _intRedPerStack = sInt; _minInt = minInt;
+
+        pulsingHitSound = sound;
+
 
         // 2. Start Coroutine if not running
         if (_pulseRoutine == null)
@@ -122,6 +128,8 @@ public class PulsingAuraBehavior : MonoBehaviour, IStatReceiver
     {
         Vector3 bottom = transform.position;
         Vector3 top = transform.position + (Vector3.up * DAMAGE_HEIGHT);
+
+        SoundManager.Instance.Play(pulsingHitSound, transform.position);
 
         Collider[] hitColliders = Physics.OverlapCapsule(bottom, top, _finalRadius, _enemyLayer);
         HashSet<GameObject> hitTracker = new HashSet<GameObject>();

@@ -9,6 +9,8 @@ public class BacklashWaveProjectile : MonoBehaviour
     private float _duration;
     private LayerMask _hitLayer;
 
+
+
     private HashSet<GameObject> _hitTargets = new HashSet<GameObject>(); // Who I already hit list
 
     public void Initialize(float damage, float speed, float duration, LayerMask hitLayer)

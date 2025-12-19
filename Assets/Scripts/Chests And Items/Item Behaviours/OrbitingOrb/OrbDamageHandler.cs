@@ -6,31 +6,30 @@ public class OrbDamageHandler : MonoBehaviour
     private float _damage;
     private LayerMask _targetLayer;
 
-    // How many times can an enemy be hit while in the orb
+    private SoundDef _hitSound;
+
     private Dictionary<GameObject, float> _damageTimers = new Dictionary<GameObject, float>();
     private const float DAMAGE_INTERVAL = 0.1f;
 
-    public void Initialize(float damage, LayerMask targetLayer)
+    // 2. Add SoundDef to your Initialize arguments
+    public void Initialize(float damage, LayerMask targetLayer, SoundDef soundToPlay)
     {
         _damage = damage;
         _targetLayer = targetLayer;
+        _hitSound = soundToPlay; 
+
         _damageTimers.Clear();
     }
 
     private void OnTriggerStay(Collider other)
     {
-        // Check layer
         if (((1 << other.gameObject.layer) & _targetLayer) == 0) return;
 
-       
         var enemy = other.GetComponentInParent<EnemyHealth>();
-
         if (enemy != null)
         {
             HandleDamageTick(enemy);
         }
-
-        //Debug.Log(_damage);
     }
 
     private void HandleDamageTick(EnemyHealth enemy)
@@ -40,7 +39,12 @@ public class OrbDamageHandler : MonoBehaviour
 
         if (!_damageTimers.ContainsKey(enemyObj) || currentTime >= _damageTimers[enemyObj] + DAMAGE_INTERVAL)
         {
-            enemy.TakeDamage(_damage); 
+            enemy.TakeDamage(_damage);
+
+            if (_hitSound != null)
+            {
+                SoundManager.Instance.Play(_hitSound, transform.position);
+            }
 
             _damageTimers[enemyObj] = currentTime;
         }
@@ -48,9 +52,6 @@ public class OrbDamageHandler : MonoBehaviour
 
     private void OnDisable()
     {
-        // Clear cache when orb is disabled/pooled to prevent memory leaks
         _damageTimers.Clear();
     }
-
-
 }
