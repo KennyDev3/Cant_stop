@@ -23,6 +23,12 @@ public class ShootRocketsSO : ItemSO
     [Header("Flight Settings")]
     public float rocketSpeed = 40f;
 
+    [Header("Audio")]
+    [SerializeField] private SoundDef shootRocketSound;
+    [SerializeField] private SoundDef rocketExplosionSound;
+
+
+
     public override void ApplyEffect(StatController targetStats, int stackCount)
     {
         RocketLauncherBehavior behavior = targetStats.GetComponent<RocketLauncherBehavior>();
@@ -39,7 +45,9 @@ public class ShootRocketsSO : ItemSO
             baseProcChance, procChancePerStack, 
             baseDamage, damagePerStack,         
             baseRadius, radiusPerStack,         
-            rocketSpeed                        
+            rocketSpeed,
+            shootRocketSound,
+            rocketExplosionSound
         );
     }
 }

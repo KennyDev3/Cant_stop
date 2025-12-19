@@ -22,6 +22,9 @@ public class OrbController : MonoBehaviour, IStatReceiver
     private GameObject _orbPrefab;
     private Transform _centerPoint;
 
+    [Header("Audio")]
+    private SoundDef _orbHitSound;
+
     // Save the angles of where orbs will go 
     private readonly float[] _angleFillOrder = new float[] { 0f, 180f, 90f, 270f, 45f, 225f, 135f, 315f };
 
@@ -32,15 +35,17 @@ public class OrbController : MonoBehaviour, IStatReceiver
         _centerPoint = transform;
     }
 
-    public void UpdateConfiguration(int stackCount, GameObject prefab, float baseDmg, float scaling, float radius, float rotSpeed, LayerMask layer)
+    public void UpdateConfiguration(int stackCount, GameObject prefab, float baseDmg, float scaling, float radius, float rotSpeed, LayerMask layer, SoundDef sound)
     {
         _stackCount = stackCount;
         _baseItemDamage = baseDmg;
-        _damageScaling = scaling; 
+        _damageScaling = scaling;
         _orbPrefab = prefab;
         _radius = radius;
         _rotationSpeed = rotSpeed;
         _enemyLayer = layer;
+
+        _orbHitSound = sound; 
 
         UpdateOrbCount(Mathf.Clamp(stackCount + 1, 0, 8));
     }
@@ -85,7 +90,7 @@ public class OrbController : MonoBehaviour, IStatReceiver
         foreach (var orb in _activeOrbs)
         {
             if (orb != null)
-                orb.GetComponent<OrbDamageHandler>().Initialize(_finalDamage, _enemyLayer);
+                orb.GetComponent<OrbDamageHandler>().Initialize(_finalDamage, _enemyLayer, _orbHitSound);
         }
     }
 

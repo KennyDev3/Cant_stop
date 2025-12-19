@@ -26,6 +26,8 @@ public class LightningStrikeBehavior : MonoBehaviour, IStatReceiver
     [Header("Runtime Stats")]
     [SerializeField] private float _finalDamage;
 
+    private SoundDef _hitSound;
+
     private void Awake()
     {
         _myStats = GetComponent<StatController>();
@@ -47,7 +49,7 @@ public class LightningStrikeBehavior : MonoBehaviour, IStatReceiver
       int stacks,
       GameObject prefab,
       LayerMask layer,
-      float bDmg, float sDmg, float range)
+      float bDmg, float sDmg, float range, SoundDef sound)
     {
         _stackCount = stacks;
         _lightningPrefab = prefab;
@@ -55,6 +57,7 @@ public class LightningStrikeBehavior : MonoBehaviour, IStatReceiver
         _baseDamage = bDmg;
         _damagePerStack = sDmg;
         _range = range;
+        _hitSound = sound;
 
         OnStatsRecalculated();
     }
@@ -137,6 +140,8 @@ public class LightningStrikeBehavior : MonoBehaviour, IStatReceiver
             Vector3 spawnPos = target.transform.position + new Vector3(0, 0.5f, 0);
 
             GameObject instance = Instantiate(_lightningPrefab, spawnPos, Quaternion.identity);
+
+            SoundManager.Instance.Play(_hitSound, transform.position);
             Destroy(instance, 2.0f); // Clean up VFX
         }
 

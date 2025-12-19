@@ -15,9 +15,11 @@ public class BacklashWaveItemSO : ItemSO
     public float waveSpeed = 15f;
     public float waveDuration = 5f; // Distance = Speed * Duration
 
-
     [Tooltip("Time in seconds between each wave layer spawning (e.g. 0.2s)")]
     public float timeBetweenWaves = 0.05f;
+
+    [Header("Audio")]
+    [SerializeField] private SoundDef _hitSound; 
 
     public override void ApplyEffect(StatController targetStats, int stackCount)
     {
@@ -34,7 +36,8 @@ public class BacklashWaveItemSO : ItemSO
             enemyLayer,
             baseDamage, damagePerStack,
             waveSpeed, waveDuration,
-            timeBetweenWaves
+            timeBetweenWaves,
+            _hitSound
         );
     }
 

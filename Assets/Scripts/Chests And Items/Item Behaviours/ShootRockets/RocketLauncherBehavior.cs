@@ -19,6 +19,9 @@ public class RocketLauncherBehavior : MonoBehaviour, IStatReceiver
     [SerializeField] private float _finalRadius;
     [SerializeField] private float _currentProcChance;
 
+    private SoundDef _fireRocketSound;
+    private SoundDef _rocketExplosionSound;
+
 
     private void Awake()
     {
@@ -40,7 +43,7 @@ public class RocketLauncherBehavior : MonoBehaviour, IStatReceiver
         float baseChance, float stackChance, 
         float bDmg, float sDmg,
         float bRad, float sRad,
-        float speed)
+        float speed, SoundDef soundRocket, SoundDef soundExplosion)
     {
         _stackCount = stacks;
         _rocketPrefab = prefab;
@@ -52,6 +55,8 @@ public class RocketLauncherBehavior : MonoBehaviour, IStatReceiver
         _baseDamage = bDmg; _damagePerStack = sDmg;
         _baseRadius = bRad; _radiusPerStack = sRad;
         _rocketSpeed = speed;
+        _fireRocketSound = soundRocket;
+        _rocketExplosionSound = soundExplosion;
 
         OnStatsRecalculated();
     }
@@ -91,7 +96,9 @@ public class RocketLauncherBehavior : MonoBehaviour, IStatReceiver
         ProjectileController projectile = rocketObj.GetComponent<ProjectileController>();
         if (projectile != null)
         {
-            projectile.Initialize(_finalDamage, _finalRadius, _rocketSpeed, _enemyLayer);
+            projectile.Initialize(_finalDamage, _finalRadius, _rocketSpeed, _enemyLayer, _rocketExplosionSound);
+
+            SoundManager.Instance.Play(_fireRocketSound, transform.position);
         }
     }
 

@@ -18,6 +18,9 @@ public class BacklashWaveBehavior : MonoBehaviour, IStatReceiver
     [Header("Runtime Stats")]
     [SerializeField] private float _finalDamage;
 
+    private SoundDef _hitSound;
+
+
     private const int MAX_LAYERS = 4;
 
     private void Awake()
@@ -44,7 +47,7 @@ public class BacklashWaveBehavior : MonoBehaviour, IStatReceiver
         LayerMask layer,
         float bDmg, float sDmg,
         float speed, float duration,
-        float timeGap)
+        float timeGap, SoundDef sound)
     {
         _stackCount = stacks;
         _projectilePrefab = prefab;
@@ -54,6 +57,7 @@ public class BacklashWaveBehavior : MonoBehaviour, IStatReceiver
         _waveSpeed = speed;
         _waveDuration = duration;
         _timeGap = timeGap;
+        _hitSound = sound;
 
         OnStatsRecalculated();
     }
@@ -76,6 +80,8 @@ public class BacklashWaveBehavior : MonoBehaviour, IStatReceiver
     {
         if (_projectilePrefab == null) return;
         StartCoroutine(FireRipple(dashDirection));
+
+        SoundManager.Instance.Play(_hitSound, transform.position);
     }
 
     private IEnumerator FireRipple(Vector3 dashDirection)

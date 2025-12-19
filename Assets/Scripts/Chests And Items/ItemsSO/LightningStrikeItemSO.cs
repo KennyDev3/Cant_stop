@@ -15,6 +15,9 @@ public class LightningStrikeItemSO : ItemSO
     [Tooltip("Radius around the Turret/Impact to search for targets")]
     public float searchRadius = 15.0f;
 
+    [Header("Audio")]
+    [SerializeField] SoundDef hitSound;
+
     public override void ApplyEffect(StatController targetStats, int stackCount)
     {
         LightningStrikeBehavior behavior = targetStats.GetComponent<LightningStrikeBehavior>();
@@ -29,7 +32,8 @@ public class LightningStrikeItemSO : ItemSO
             lightningVFXPrefab,
             enemyLayer,
             baseDamage, damagePerStack,
-            searchRadius
+            searchRadius,
+            hitSound
         );
     }
 
