@@ -245,6 +245,17 @@
                 },
                 {
                     "name": "",
+                    "id": "7576e1be-453d-4bc7-a05f-5061eb09cf13",
+                    "path": "<Gamepad>/leftShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";PS4 Controller;Gamepad;Xbox Controller",
+                    "action": "Jump",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "dc65b89f-9bd3-43fb-92af-d0d87ba5faa4",
                     "path": "<Keyboard>/leftShift",
                     "interactions": "",
@@ -258,6 +269,17 @@
                     "name": "",
                     "id": "c8fcd86e-dcfd-4f88-8e93-b638cdbf3320",
                     "path": "<DualShockGamepad>/leftTrigger",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Gamepad;Xbox Controller;PS4 Controller",
+                    "action": "Sprint",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "2712fb44-6432-4eca-817e-d8bd4b884294",
+                    "path": "<Gamepad>/leftTrigger",
                     "interactions": "",
                     "processors": "",
                     "groups": "Gamepad;Xbox Controller;PS4 Controller",
@@ -289,6 +311,17 @@
                 },
                 {
                     "name": "",
+                    "id": "f878b339-d10a-4540-8758-10972766a1ec",
+                    "path": "<Gamepad>/buttonSouth",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";PS4 Controller;Gamepad",
+                    "action": "Interact",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "fb50ccca-5bd4-4a19-b469-bab352cc1cfb",
                     "path": "<Keyboard>/q",
                     "interactions": "",
@@ -302,6 +335,17 @@
                     "name": "",
                     "id": "621e14d2-83f5-4a0e-aeb7-704893ed10c3",
                     "path": "<DualShockGamepad>/buttonNorth",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";PS4 Controller;Xbox Controller;Gamepad",
+                    "action": "PickUpGarbage",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "0058642a-c357-4607-8daf-42c3a1d00f27",
+                    "path": "<Gamepad>/buttonNorth",
                     "interactions": "",
                     "processors": "",
                     "groups": ";PS4 Controller;Xbox Controller;Gamepad",
@@ -344,6 +388,17 @@
                 },
                 {
                     "name": "",
+                    "id": "767a786c-4fbd-4e0f-90b1-3d9294a5dacc",
+                    "path": "<Gamepad>/rightShoulder",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad;Xbox Controller;PS4 Controller",
+                    "action": "Parry",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
                     "id": "17705baf-4fb3-4e3a-a75e-c4aace4c651f",
                     "path": "<Keyboard>/r",
                     "interactions": "",
@@ -357,6 +412,17 @@
                     "name": "",
                     "id": "f7de5dea-6ba7-4d58-80bb-f077bdd967c4",
                     "path": "<DualShockGamepad>/buttonWest",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Gamepad;Xbox Controller;PS4 Controller",
+                    "action": "Chuck",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "397b9023-da93-4b56-bf72-58a7f410b13a",
+                    "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": ";Gamepad;Xbox Controller;PS4 Controller",

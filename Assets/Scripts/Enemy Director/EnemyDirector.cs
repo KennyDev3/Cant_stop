@@ -43,6 +43,8 @@ public class EnemyDirector : MonoBehaviour
     [SerializeField] private float minSpawnRadius = 6f;
     [SerializeField] private float maxSpawnRadius = 16f;
 
+    private List<EnemyData> _affordableCache = new List<EnemyData>();
+
     [System.Serializable]
     public class EnemyConfig
     {
@@ -185,14 +187,20 @@ public class EnemyDirector : MonoBehaviour
         {
             attempts++;
 
-            List<EnemyData> affordable = enemyList
-                .Where(x => x.canSpawn && x.enemyData != null && x.enemyData.spawnCost <= waveCredits)
-                .Select(x => x.enemyData)
-                .ToList();
+            // Caching Enemy List
+            _affordableCache.Clear();
+            for (int i = 0; i < enemyList.Count; i++)
+            {
+                EnemyConfig config = enemyList[i];
+                if (config.canSpawn && config.enemyData != null && config.enemyData.spawnCost <= waveCredits)
+                {
+                    _affordableCache.Add(config.enemyData);
+                }
+            }
 
-            if (affordable.Count == 0) break;
+            if (_affordableCache.Count == 0) break;
 
-            EnemyData selectedEnemy = GetWeightedRandomEnemy(affordable);
+            EnemyData selectedEnemy = GetWeightedRandomEnemy(_affordableCache);
 
             if (amountSpentThisWave + selectedEnemy.spawnCost > currentSpendingLimit + (selectedEnemy.spawnCost * 0.5f))
                 break;
