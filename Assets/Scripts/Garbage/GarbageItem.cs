@@ -1,5 +1,6 @@
 ﻿using StarterAssets;
 using System;
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -23,6 +24,13 @@ public class GarbageItem : MonoBehaviour, IInteractable
     [SerializeField] private GameObject destroyTarget;
     [SerializeField] private GameObject infoUIPrefab;
 
+    [Header("Pickup Animation")]
+    [SerializeField] private float animationDuration = 0.5f; 
+    [SerializeField] private float maxScaleMultiplier = 1.15f;
+
+
+    private bool _isBeingCollected = false;
+
     [Tooltip("Multiplier for the Y-axis offset, based on the object's height (bounds.size.y).")]
     [SerializeField] private float uiYMultiplier = 0.6f;
 
@@ -31,6 +39,8 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
     [Tooltip("Used if NO Renderer is found.")]
     [SerializeField] private Vector3 fallbackOffset = new Vector3(0, 1.5f, 0);
+
+
 
     private int _originalLayer;
     private int _interactableLayerIndex;
@@ -126,15 +136,52 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
     public void NotifyCollected()
     {
+        // If it's an enemy/pooled object, bypass the animation as requested
         if (isPooledObject)
         {
             OnCollected?.Invoke(this);
         }
         else
         {
-            if (destroyTarget != null) Destroy(destroyTarget);
-            else Destroy(gameObject);
+            // Prevent double-triggering if NotifyCollected is called multiple times
+            if (_isBeingCollected) return;
+
+            StartCoroutine(PickupAnimationRoutine());
         }
+    }
+
+    private IEnumerator PickupAnimationRoutine()
+    {
+        _isBeingCollected = true;
+
+        if (interactionCollider != null) interactionCollider.enabled = false;
+        if (targetOutline != null) targetOutline.enabled = false;
+        if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
+
+        Vector3 originalScale = transform.localScale;
+        float elapsed = 0f;
+
+        while (elapsed < animationDuration)
+        {
+            elapsed += Time.deltaTime;
+            float percent = elapsed / animationDuration;
+            float curve;
+
+            if (percent < 0.2f)
+            {
+                curve = Mathf.Lerp(1f, maxScaleMultiplier, percent / 0.2f);
+            }
+            else
+            {
+                curve = Mathf.Lerp(maxScaleMultiplier, 0f, (percent - 0.2f) / 0.8f);
+            }
+
+            transform.localScale = originalScale * curve;
+            yield return null;
+        }
+
+        if (destroyTarget != null) Destroy(destroyTarget);
+        else Destroy(gameObject);
     }
 
     public void Highlight()
