@@ -56,15 +56,22 @@ public class DifficultyManager : MonoBehaviour
         }
     }
 
+
     private void IncreaseDifficulty()
     {
         DifficultyStage++;
 
-        HpMultiplier = Mathf.Pow(profile.hpMultiplierPerStep, DifficultyStage);
-        DamageMultiplier = Mathf.Pow(profile.damageMultiplierPerStep, DifficultyStage);
-        CreditMultiplier = Mathf.Pow(profile.creditMultiplierPerStep, DifficultyStage);
+        // Subtracting 1 converts "1.3" into "0.3" (the 30% increase)
+        float hpStep = profile.hpMultiplierPerStep - 1f;
+        float dmgStep = profile.damageMultiplierPerStep - 1f;
+        float creditStep = profile.creditMultiplierPerStep - 1f;
 
-        if (debugMode) Debug.Log($"Difficulty Increased: Stage {DifficultyStage}");
+        // Linear formula: Base (1) + (Stage * 30%)
+        HpMultiplier = 1f + (DifficultyStage * hpStep);
+        DamageMultiplier = 1f + (DifficultyStage * dmgStep);
+        CreditMultiplier = 1f + (DifficultyStage * creditStep);
+
+        if (debugMode) Debug.Log($"Difficulty Increased: Stage {DifficultyStage} | HP: x{HpMultiplier}");
         OnDifficultyIncreased?.Invoke(DifficultyStage);
     }
 

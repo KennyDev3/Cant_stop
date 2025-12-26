@@ -2,28 +2,24 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-
 public class ProjectileController : MonoBehaviour
 {
     // --- Config ---
     public float speed = 100;
+    public float maxFlightDuration = 5f; 
 
     private LayerMask _damageLayer;
+    private float _flightTimer; 
 
     // --- Explosion VFX ---
     public GameObject rocketExplosion;
-
-    // --- Projectile Mesh ---
     public MeshRenderer projectileMesh;
 
     // --- Script Variables ---
     private bool targetHit;
     private float _damage;
     private float _radius;
-
     private SoundDef _explosionSound;
-
-    
 
     // --- VFX ---
     public ParticleSystem disableOnHit;
@@ -32,7 +28,7 @@ public class ProjectileController : MonoBehaviour
     {
         if (disableOnHit != null)
         {
-            disableOnHit.Play(true); 
+            disableOnHit.Play(true);
         }
     }
 
@@ -40,7 +36,7 @@ public class ProjectileController : MonoBehaviour
     {
         _damage = damage;
         _radius = radius;
-        speed = speedVal; 
+        speed = speedVal;
         _damageLayer = layer;
         _explosionSound = sound;
     }
@@ -48,24 +44,25 @@ public class ProjectileController : MonoBehaviour
     private void Update()
     {
         if (targetHit) return;
+
+        _flightTimer += Time.deltaTime;
+        if (_flightTimer >= maxFlightDuration)
+        {
+            Destroy(gameObject);
+
+            return;
+        }
+
         transform.position += transform.forward * (speed * Time.deltaTime);
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!enabled) return;
-        if (targetHit) return;
+        if (!enabled || targetHit) return;
 
-        
         int otherLayerMask = (1 << other.gameObject.layer);
+        if ((_damageLayer.value & otherLayerMask) == 0) return;
 
-        
-        if ((_damageLayer.value & otherLayerMask) == 0)
-        {
-            return;
-        }
-
-        
         if (other.CompareTag("Player") || other.CompareTag("Turret")) return;
 
         Explode();
@@ -90,7 +87,6 @@ public class ProjectileController : MonoBehaviour
             Instantiate(rocketExplosion, transform.position, rocketExplosion.transform.rotation, null);
         }
 
-        
         DealAreaDamage();
         SoundManager.Instance.Play(_explosionSound, transform.position);
     }
@@ -98,13 +94,11 @@ public class ProjectileController : MonoBehaviour
     private void DealAreaDamage()
     {
         Collider[] hits = Physics.OverlapSphere(transform.position, _radius, _damageLayer);
-        HashSet<GameObject> hitObjects = new HashSet<GameObject>(); 
+        HashSet<GameObject> hitObjects = new HashSet<GameObject>();
 
         foreach (var hit in hits)
         {
             EnemyHealth enemy = hit.GetComponent<EnemyHealth>();
-            if (enemy == null) enemy = hit.GetComponent<EnemyHealth>();
-
             if (enemy != null && enemy.enabled && !hitObjects.Contains(enemy.gameObject))
             {
                 hitObjects.Add(enemy.gameObject);
@@ -112,7 +106,4 @@ public class ProjectileController : MonoBehaviour
             }
         }
     }
-
-
-
 }

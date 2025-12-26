@@ -1,6 +1,7 @@
-using UnityEngine;
-using System.Collections.Generic;
 using StarterAssets;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(Collider))]
@@ -10,6 +11,8 @@ public class GarbageBundle : MonoBehaviour, IInteractable
     private List<GarbageData> _contents = new List<GarbageData>();
     private Rigidbody _rb;
     private bool _isConsumed = false;
+
+
 
     [SerializeField] private Outline targetOutline;
 
@@ -26,6 +29,10 @@ public class GarbageBundle : MonoBehaviour, IInteractable
     [Header("Scaling Settings")]
     [SerializeField] private float minScaleXYZ = 1.3f; // Prefab default
     [SerializeField] private float maxScaleXYZ = 2.5f; // Max growth
+
+    [Header("Effects")]
+    [SerializeField] private TrailRenderer speedTrail;
+    [SerializeField] private float stopSpeedThreshold = 0.5f;
 
 
     private Vector3 _originalScale;
@@ -55,6 +62,15 @@ public class GarbageBundle : MonoBehaviour, IInteractable
         _rb.isKinematic = false;
         _rb.AddForce(direction * force, ForceMode.VelocityChange);
         _rb.AddTorque(Random.insideUnitSphere * rotationSpeed, ForceMode.Impulse);
+
+        // -- Speed Trail -- 
+
+        if (speedTrail != null)
+        {
+            speedTrail.emitting = true;
+            StartCoroutine(TrailWatchdog());
+        }
+
     }
 
 
@@ -85,6 +101,17 @@ public class GarbageBundle : MonoBehaviour, IInteractable
         }
     }
 
+    private IEnumerator TrailWatchdog()
+    {
+        yield return new WaitForSeconds(0.1f);
+
+        while (_rb.linearVelocity.sqrMagnitude > stopSpeedThreshold * stopSpeedThreshold)
+        {
+            yield return new WaitForSeconds(0.05f);
+        }
+
+        speedTrail.emitting = false;
+    }
     public string GetInteractionPrompt()
     {
         return $"Pick up Trash Bundle (${GetTotalValue()})";
