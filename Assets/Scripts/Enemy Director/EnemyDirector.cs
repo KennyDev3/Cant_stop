@@ -20,7 +20,12 @@ public class EnemyDirector : MonoBehaviour
     [Header("Wave Scaling")]
     [SerializeField] private float initialMaxExpenditure = 200f; 
     [SerializeField] private float expenditureGrowthPerMinute = 100f; 
-    [SerializeField] private float absoluteMaxExpenditure = 10000f; 
+    [SerializeField] private float absoluteMaxExpenditure = 10000f;
+
+    [Header("Dynamic Wave Timing")]
+    [SerializeField] private float initialWaveInterval = 60f;      
+    [SerializeField] private float acceleratedWaveInterval = 30f;  
+    [SerializeField] private float waveAccelerationThreshold = 300f; 
 
     [Header("Economy - Trickle (Background)")]
     [SerializeField] private float trickleCreditsPerSecond = 2f;
@@ -100,9 +105,13 @@ public class EnemyDirector : MonoBehaviour
         UpdateUI();
         HandleEconomyAndTimers();
 
-        // Wave Interval Check
+        float currentRunTime = DifficultyManager.Instance.TotalRunTime;
+        float currentSpawnInterval = (currentRunTime >= waveAccelerationThreshold)
+            ? acceleratedWaveInterval
+            : initialWaveInterval;
+
         waveTimer += Time.deltaTime;
-        if (waveTimer >= spawnCheckInterval)
+        if (waveTimer >= currentSpawnInterval)
         {
             AttemptSpawnWave();
             waveTimer = 0f;

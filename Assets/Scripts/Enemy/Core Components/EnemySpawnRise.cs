@@ -14,6 +14,7 @@ public class EnemySpawnRise : MonoBehaviour
     private NavMeshAgent agent;
     private Collider col;
 
+    [SerializeField] private SoundDef enemySpawnPortalSound;
     private bool isSpawning = false;
 
     void Awake()
@@ -32,6 +33,8 @@ public class EnemySpawnRise : MonoBehaviour
     private IEnumerator SpawnRoutine(Vector3 pos)
     {
         isSpawning = true;
+
+        SoundManager.Instance.Play(enemySpawnPortalSound, transform.position);
 
         GameObject portal = Instantiate(
             portalPrefab,

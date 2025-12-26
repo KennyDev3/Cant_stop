@@ -41,6 +41,8 @@ public class GarbageItem : MonoBehaviour, IInteractable
     [SerializeField] private Vector3 fallbackOffset = new Vector3(0, 1.5f, 0);
 
 
+    [Header("UI Effects")]
+    [SerializeField] private GameObject popupTextPrefab;
 
     private int _originalLayer;
     private int _interactableLayerIndex;
@@ -136,6 +138,8 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
     public void NotifyCollected()
     {
+        SpawnPopup(); // spawn popup text
+
         // If it's an enemy/pooled object, bypass the animation as requested
         if (isPooledObject)
         {
@@ -150,6 +154,18 @@ public class GarbageItem : MonoBehaviour, IInteractable
         }
     }
 
+    private void SpawnPopup()
+    {
+        if (popupTextPrefab != null && garbageData != null)
+        {
+            // Spawn at the object's current position
+            GameObject popup = Instantiate(popupTextPrefab, transform.position + Vector3.up, Quaternion.identity);
+            if (popup.TryGetComponent(out PopupText popupScript))
+            {
+                popupScript.Setup(garbageData.capacityCost);
+            }
+        }
+    }
     private IEnumerator PickupAnimationRoutine()
     {
         _isBeingCollected = true;

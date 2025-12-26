@@ -119,7 +119,7 @@ public class TutorialManager : MonoBehaviour
         // ================= PHASE 2: DISPOSE SINGLE =================
         if (startingPhase <= TutorialPhase.DisposeSingle)
         {
-            SetUI("Go to Disposal Area (White Square).\nPress 'R' to Throw (Hold R to throw farther).");
+            SetUI("Go to Disposal Area (Green Square).\nPress 'R' to Throw (Hold R to throw farther).");
             if (startingPhase == TutorialPhase.DisposeSingle && garbageHandler.GetCurrentCapacity() == 0)
                 singleGarbageItem.SetActive(true);
 
