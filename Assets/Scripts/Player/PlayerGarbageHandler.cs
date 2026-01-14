@@ -400,4 +400,26 @@ public class PlayerGarbageHandler : MonoBehaviour
             safeGuard++;
         }
     }
+
+    public void AddRefundedGarbage(List<GarbageData> data)
+    {
+        if (data == null || data.Count == 0) return;
+
+        foreach (var item in data)
+        {
+            _carriedGarbage.Add(item);
+            _currentCapacity += item.capacityCost;
+        }
+
+        // Update UI and play sound
+        onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
+        SoundManager.Instance.Play(garbageAddedToIventorySound, transform.position);
+
+        Debug.Log($"<color=cyan>[Refund]</color> Received {data.Count} items back. New Capacity: {_currentCapacity}/{maxCapacity}");
+
+        if (IsOverencumbered)
+        {
+            Debug.Log("<color=orange>Refund made you overencumbered!</color>");
+        }
+    }
 }
