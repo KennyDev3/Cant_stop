@@ -126,14 +126,18 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
     public void Interact(PlayerInteractor interactor)
     {
-        var garbageHandler = interactor.GetComponent<PlayerGarbageHandler>();
+        return;
 
-        if (garbageHandler != null && garbageHandler.StartPickupProcess(this))
-        {
-            if (interactionCollider != null) interactionCollider.enabled = false;
-            if (targetOutline != null) targetOutline.enabled = false;
-            if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
-        }
+        // For now, E does nothing, cant singlepickup.
+
+        //var garbageHandler = interactor.GetComponent<PlayerGarbageHandler>();
+
+        //if (garbageHandler != null && garbageHandler.StartPickupProcess(this))
+        //{
+        //    if (interactionCollider != null) interactionCollider.enabled = false;
+        //    if (targetOutline != null) targetOutline.enabled = false;
+        //    if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
+        //}
     }
 
     public void NotifyCollected()

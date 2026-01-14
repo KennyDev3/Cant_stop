@@ -122,12 +122,12 @@ public class UpgradeHandler : MonoBehaviour
                     playerGarbageHandler.UpgradeMaxCapacity((int)definition.valuePerLevel);
                 }
                 break;
-            case UpgradeType.PlayerSpeed:
-                if(thirdPersonController != null)
-                {
-                    thirdPersonController.UpgradePlayerSpeed(definition.valuePerLevel);
-                }
-                break;
+            //case UpgradeType.PlayerSpeed:
+            //    if(thirdPersonController != null)
+            //    {
+            //        thirdPersonController.UpgradePlayerSpeed(definition.valuePerLevel);
+            //    }
+            //    break;
             
 
             case UpgradeType.PlayerStrength:
