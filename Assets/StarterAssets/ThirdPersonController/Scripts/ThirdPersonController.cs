@@ -22,6 +22,10 @@ namespace StarterAssets
     {
         [SerializeField] private StatController _stats;
 
+        [Header("Input Settings")]
+        [Tooltip("If true, rotation is controlled by the Mouse cursor (Raycast). If false, it uses the Gamepad/Stick input.")]
+        public bool UseMouseRotation = true;
+
         [Header("Player")]
         public float MoveSpeed = 2.0f;
         public float SprintSpeed = 5.335f;
@@ -167,31 +171,20 @@ namespace StarterAssets
         private void HandleRotation()
         {
 #if ENABLE_INPUT_SYSTEM
-            Vector2 lookInput = _input.look;
-            Vector2 mouseDelta = Mouse.current.delta.ReadValue();
-
-            // 1. INPUT DETECTION: Determine if we should switch modes
-            // Use a small deadzone to prevent stick drift or microscopic mouse jitters from switching modes
-            if (lookInput.sqrMagnitude > 0.1f)
+            // GAMEPAD / CONTROLLER MODE
+            if (!UseMouseRotation)
             {
-                _isUsingGamepad = true;
-            }
-            else if (mouseDelta.sqrMagnitude > 0.5f)
-            {
-                _isUsingGamepad = false;
-            }
-
-            // 2. CURSOR MANAGEMENT
-            if (_isUsingGamepad)
-            {
+                // Force cursor hidden and locked when in Controller mode
                 if (Cursor.visible)
                 {
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                 }
 
-                // Only update rotation if the stick is actually being pushed
-                // This prevents the player from snapping to a default 0 rotation when the stick is released
+                // Use the Input System 'look' vector (usually Right Stick)
+                Vector2 lookInput = _input.look;
+
+                // Only rotate if the stick is actually pushed (deadzone check)
                 if (lookInput.sqrMagnitude > 0.1f)
                 {
                     float targetAngle = Mathf.Atan2(lookInput.x, lookInput.y) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
@@ -199,15 +192,17 @@ namespace StarterAssets
                     transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 20f);
                 }
             }
+            // MOUSE MODE
             else
             {
-                if (!Cursor.visible)
+                // Force cursor visible and free when in Mouse mode
+                if (Cursor.lockState != CursorLockMode.None)
                 {
                     Cursor.visible = true;
                     Cursor.lockState = CursorLockMode.None;
                 }
 
-                // MOUSE LOOK LOGIC (Orthographic Plane Raycast)
+                // Perform the Raycast logic (Isometric/Top-down style)
                 Plane playerPlane = new Plane(Vector3.up, transform.position);
                 Ray ray = _mainCamera.GetComponent<Camera>().ScreenPointToRay(Mouse.current.position.ReadValue());
 
@@ -215,7 +210,7 @@ namespace StarterAssets
                 {
                     Vector3 targetPoint = ray.GetPoint(hitDist);
                     Vector3 lookDirection = (targetPoint - transform.position).normalized;
-                    lookDirection.y = 0;
+                    lookDirection.y = 0; // Keep rotation flat on the ground
 
                     if (lookDirection != Vector3.zero)
                     {
