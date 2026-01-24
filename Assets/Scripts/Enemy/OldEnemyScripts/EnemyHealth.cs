@@ -1,409 +1,508 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
+
+
+[RequireComponent(typeof(EnemyBrain))]
+[RequireComponent(typeof(NavMeshAgent))]
 public class EnemyHealth : MonoBehaviour
 {
+    #region Configuration
+    [Header("Data & Stats")]
     private EnemyData _data;
     public EnemyData Data => _data;
-
-    [Header("Layer Configuration")]
-    [Tooltip("The ID of the 'Corpse' layer created in Project Settings. Must be IGNORED by Player in Physics Matrix.")]
-    [SerializeField] private int corpseLayerIndex;
-    [Tooltip("The ID of the 'Default' layer. Must be DETECTED by Player.")]
-    [SerializeField] private int defaultLayerIndex = 0;
-
-    [Header("Audio")]
-    [SerializeField] private SoundDef playerWalksOverEnemyCorpseSound;
-    [SerializeField] private SoundDef enemyHitSound;
-
-    public bool isDead { get; private set; } = false;
-    private bool _isDissolving = false;
     public float RuntimeDamageMultiplier { get; private set; } = 1f;
 
-    private float currentHealth;
-    private float finalMaxHealth;
+    [Header("Audio")]
+    [SerializeField] private SoundDef _walkOverCorpseSound;
+    [SerializeField] private SoundDef _hitSound;
 
-    // --- Cached Components ---
-    private EnemyBrain enemyBrain;
-    private NavMeshAgent navMeshAgent;
-    private Collider enemyCollider; // The main capsule (alive)
-    private Animator animator;
-    private AttackBehaviour[] attackBehaviours;
+    [Header("Dependencies")]
+    [SerializeField] private FloatingEnemyHealthBar _healthBar;
 
-    [SerializeField] FloatingEnemyHealthBar healthBar;
+    // Internal State
+    public bool IsDead { get; private set; } = false;
+    private float _currentHealth;
+    private float _maxHealth;
+    #endregion
 
-    [Header("Loot System")]
-    [Tooltip("The prefab (box) that will be spawned when the player runs over the corpse.")]
-    public GameObject garbageBoxPrefab;
-    public float spawnBoxDelay = 1.0f;
-    
-    [Header("Corpse Timings")]
-    public float lootInteractableDelay = 0.2f;
-    public float ragdollDisableDelay = 10f;
-
-    [Header("Visuals")]
-    private float particleEffectDestroyTime = 3f;
-    public float damageTextOffsetY = 0f;
-    public float dissolveDuration = 2.5f;
-    private float meshHitFlashDuration = 0.08f;
-
-    [Header("Ragdoll Setup")]
-    public Transform ragdollRootBone;
-    public Transform adventurerModel;
-
-    [Tooltip("DRAG THE CHILD 'InteractionSensor' OBJECT HERE. Do NOT drag the Hips bone.")]
-    public Collider interactionCollider;
-
-    private Rigidbody[] ragdollRigidbodies;
-    private Collider[] ragdollColliders;
-
-    private SkinnedMeshRenderer _meshRenderer;
-    private MaterialPropertyBlock _propBlock;
-
-    private static readonly int DissolveID = Shader.PropertyToID("_Dissolve");
-    private static readonly int EmissionColorID = Shader.PropertyToID("_EmissionColor");
-
-    public float deathForceMultiplier = 150f;
-
-    public static event System.Action<EnemyData> OnEnemyDeath;
-
-    void Awake()
+    #region Sub-Systems Configuration
+    [Serializable]
+    public class RagdollSettings
     {
-        enemyBrain = GetComponent<EnemyBrain>();
-        attackBehaviours = GetComponents<AttackBehaviour>();
-        navMeshAgent = GetComponent<NavMeshAgent>();
-        enemyCollider = GetComponent<Collider>();
-        animator = GetComponentInChildren<Animator>();
-
-        if (adventurerModel != null)
-            _meshRenderer = adventurerModel.GetComponentInChildren<SkinnedMeshRenderer>();
-
-        _propBlock = new MaterialPropertyBlock();
-
-        if (ragdollRootBone != null)
-        {
-            ragdollRigidbodies = ragdollRootBone.GetComponentsInChildren<Rigidbody>();
-            ragdollColliders = ragdollRootBone.GetComponentsInChildren<Collider>();
-        }
+        public Transform rootBone;
+        public int corpseLayerIndex; // "Corpse"
+        public int defaultLayerIndex = 0; // "Default"
+        public float ragdollDisableDelay = 10f;
+        public float deathForceMultiplier = 150f;
     }
 
-    public void Initialize(EnemyData dataToUse, float hpMult, float dmgMult)
+    [Serializable]
+    public class VisualSettings
     {
-        if (dataToUse == null) { Debug.LogError($"[EnemyHealth] Missing Data on {gameObject.name}"); return; }
+        public Transform modelRoot; // The parent of the mesh
+        public float dissolveDuration = 2.5f;
+        public float hitFlashDuration = 0.08f;
+        public float damageTextOffsetY = 0f;
+        public float particleLifetime = 3f;
+    }
 
-        _data = dataToUse;
-        RuntimeDamageMultiplier = dmgMult;
-        finalMaxHealth = _data.maxHealth * hpMult;
-        currentHealth = finalMaxHealth;
+    [Serializable]
+    public class LootSettings
+    {
+        [Tooltip("DRAG THE CHILD 'InteractionSensor' OBJECT HERE.")]
+        public Collider interactionSensor;
+        public GameObject garbageBoxPrefab;
+        public float spawnBoxDelay = 1.0f;
+        public float interactableDelay = 0.2f;
+    }
 
-        if (navMeshAgent != null) navMeshAgent.speed = _data.moveSpeed;
-        if (enemyBrain != null) enemyBrain.Initialize(_data);
+    [Space(10)]
+    [SerializeField] private RagdollSettings _ragdollConfig;
+    [SerializeField] private VisualSettings _visualConfig;
+    [SerializeField] private LootSettings _lootConfig;
+    #endregion
 
-        if (attackBehaviours != null)
+    #region Component Cache
+    private EnemyBrain _brain;
+    private NavMeshAgent _agent;
+    private Collider _mainCollider;
+    private Animator _animator;
+    private AttackBehaviour[] _attacks;
+    #endregion
+
+    // Helper Instances
+    private RagdollHandler _ragdollHandler;
+    private VisualHandler _visualHandler;
+    private LootHandler _lootHandler;
+
+    public static event Action<EnemyData> OnEnemyDeath;
+
+    private void Awake()
+    {
+        CacheComponents();
+        InitializeSubSystems();
+    }
+
+    private void CacheComponents()
+    {
+        _brain = GetComponent<EnemyBrain>();
+        _agent = GetComponent<NavMeshAgent>();
+        _mainCollider = GetComponent<Collider>();
+        _animator = GetComponentInChildren<Animator>();
+        _attacks = GetComponents<AttackBehaviour>();
+    }
+
+    private void InitializeSubSystems()
+    {
+        _ragdollHandler = new RagdollHandler(this, _ragdollConfig, _animator, _agent, _mainCollider);
+
+        var renderer = _visualConfig.modelRoot != null ? _visualConfig.modelRoot.GetComponentInChildren<SkinnedMeshRenderer>() : null;
+        _visualHandler = new VisualHandler(this, _visualConfig, renderer);
+
+        var outline = _visualConfig.modelRoot != null ? _visualConfig.modelRoot.GetComponentInChildren<Outline>() : null;
+        _lootHandler = new LootHandler(this, _lootConfig, outline);
+    }
+
+    public void Initialize(EnemyData data, float hpMult, float dmgMult)
+    {
+        if (data == null)
         {
-            foreach (var attack in attackBehaviours) attack.Initialize(enemyBrain, _data);
+            Debug.LogError($"[EnemyHealth] Missing Data on {name}");
+            return;
         }
 
-        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, finalMaxHealth);
+        _data = data;
+        RuntimeDamageMultiplier = dmgMult;
+        _maxHealth = _data.maxHealth * hpMult;
+        _currentHealth = _maxHealth;
+
+        // Propagate Init to components
+        if (_agent) _agent.speed = _data.moveSpeed;
+        if (_brain) _brain.Initialize(_data);
+        if (_attacks != null)
+        {
+            foreach (var attack in _attacks) attack.Initialize(_brain, _data);
+        }
+
+        if (_healthBar) _healthBar.UpdateHealthBar(_currentHealth, _maxHealth);
     }
 
     private void OnEnable()
     {
-        isDead = false;
-        _isDissolving = false;
+        IsDead = false;
         this.enabled = true;
 
-        // 1. Reset Alive Components
-        if (enemyBrain != null) enemyBrain.enabled = true;
-        if (enemyCollider != null) enemyCollider.enabled = true;
-        if (navMeshAgent != null)
-        {
-            navMeshAgent.enabled = true;
-            navMeshAgent.isStopped = false;
-        }
-        if (animator != null) animator.enabled = true;
-        if (healthBar != null) healthBar.gameObject.SetActive(true);
+        // Restore Alive State
+        if (_brain) _brain.enabled = true;
+        if (_healthBar) _healthBar.gameObject.SetActive(true);
 
-        ResetVisuals();
-
-        // 2. Disable Ragdoll (Resets layers to Default)
-        SetRagdollState(false);
-
-        // 3. Reset Interaction Sensor
-        if (interactionCollider != null)
-        {
-            // Clean up any proxy script left over from pooling
-            var oldProxy = interactionCollider.GetComponent<CorpseLootLogic>();
-            if (oldProxy != null) Destroy(oldProxy);
-
-            interactionCollider.enabled = false;
-            interactionCollider.isTrigger = false;
-            // Ensure it's hidden until death
-            interactionCollider.gameObject.SetActive(false);
-        }
+        _ragdollHandler.ToggleRagdoll(false);
+        _lootHandler.Reset();
+        _visualHandler.Reset();
     }
 
-    private void ResetVisuals()
+    #region Public Interface (Damage & Interaction)
+
+    public void TakeDamage(float damage) => TakeDamage(damage, transform.position + Vector3.up);
+
+    public void TakeDamage(float damage, Vector3 hitPoint)
     {
-        if (_meshRenderer != null)
+        if (IsDead) return;
+
+        // Visual Feedback
+        if (DamageTextManager.Instance != null)
+            DamageTextManager.Instance.ShowDamage(damage, hitPoint + Vector3.up * _visualConfig.damageTextOffsetY, damage > 150);
+
+        _visualHandler.Flash();
+        _visualHandler.SpawnBloodEffect(hitPoint, _data?.bloodVFX);
+        SoundManager.Instance.Play(_hitSound, transform.position);
+
+        if (_brain) _brain.PlayHitAnimation();
+
+        // Logic
+        _currentHealth -= damage;
+        if (_healthBar) _healthBar.UpdateHealthBar(_currentHealth, _maxHealth);
+
+        if (_currentHealth <= 0) Die();
+    }
+
+    public void HandleExternalTrigger(Collider other)
+    {
+        // Bridge for the interaction sensor logic
+        if (!IsDead || _visualHandler.IsDissolving) return;
+
+        if (other.CompareTag("Player"))
         {
-            _meshRenderer.GetPropertyBlock(_propBlock);
-            _propBlock.Clear();
-            _meshRenderer.SetPropertyBlock(_propBlock);
+            SoundManager.Instance.Play(_walkOverCorpseSound, transform.position);
+            StartCoroutine(CollectCorpseRoutine());
         }
     }
+
+    #endregion
+
+    #region Death Logic
 
     private void Die()
     {
-        if (isDead) return;
-        isDead = true;
+        if (IsDead) return;
+        IsDead = true;
 
         OnEnemyDeath?.Invoke(_data);
-        if (healthBar != null) healthBar.gameObject.SetActive(false);
-
-        // --- STEP 1: Enable Physics (Bones move to Corpse Layer) ---
-        SetRagdollState(true);
-
-        if (enemyBrain != null) enemyBrain.enabled = false;
-
-        ApplyDeathForce();
+        if (_healthBar) _healthBar.gameObject.SetActive(false);
+        if (_brain) _brain.enabled = false;
 
         if (CorpseManager.Instance != null) CorpseManager.Instance.RegisterCorpse(this);
 
-        // --- STEP 2: Wait, then Enable Trigger (Sensor moves to Default Layer) ---
-        StartCoroutine(ActivateLootTriggerDelayed(lootInteractableDelay));
-        StartCoroutine(DisableRagdollAfterDelay(ragdollDisableDelay));
+        // Sub-system sequencing
+        _ragdollHandler.ToggleRagdoll(true); // 1. Physics
+        _lootHandler.EnableLootInteraction(); // 2. Interaction
     }
 
-    private void SetRagdollState(bool isActive)
+    private IEnumerator CollectCorpseRoutine()
     {
-        if (ragdollRigidbodies == null) return;
+        _lootHandler.DisableInteraction(); // Prevent double trigger
 
-        // Disable "Alive" collider and navmesh
-        if (enemyCollider != null) enemyCollider.enabled = !isActive;
-        if (navMeshAgent != null) navMeshAgent.enabled = !isActive;
-        if (animator != null) animator.enabled = !isActive;
+        if (CorpseManager.Instance != null) CorpseManager.Instance.UnregisterCorpse(this);
 
-        // Handle Limbs
-        foreach (Collider col in ragdollColliders)
+        _lootHandler.SpawnGarbageBox(_data); // Spawn loot
+        yield return StartCoroutine(_visualHandler.DissolveRoutine()); // Visual finish
+
+        ReturnToPool();
+    }
+
+    public void ReturnToPool()
+    {
+        _ragdollHandler.ResetRootBone();
+
+        if (EnemyPooler.Instance != null)
+            EnemyPooler.Instance.ReturnEnemyToPool(_data, this.gameObject);
+        else
+            Destroy(gameObject);
+    }
+
+    #endregion
+
+    #region Helper Classes (Composition)
+
+
+    /// <summary>
+    /// Handles Rigidbodies, Colliders, Layers, and Physical Forces.
+    /// </summary>
+    private class RagdollHandler
+    {
+        private readonly EnemyHealth _ctx;
+        private readonly RagdollSettings _settings;
+        private readonly Animator _animator;
+        private readonly NavMeshAgent _agent;
+        private readonly Collider _mainCollider;
+
+        private Rigidbody[] _rigidbodies;
+        private Collider[] _colliders;
+
+        public RagdollHandler(EnemyHealth ctx, RagdollSettings settings, Animator anim, NavMeshAgent agent, Collider mainCol)
         {
-            col.enabled = isActive;
+            _ctx = ctx;
+            _settings = settings;
+            _animator = anim;
+            _agent = agent;
+            _mainCollider = mainCol;
 
-            // KEY LOGIC: 
-            // If ragdolling (Active) -> Set to "Corpse" layer (Ignored by Player).
-            // If resetting (Inactive) -> Set back to "Default" layer.
-            col.gameObject.layer = isActive ? corpseLayerIndex : defaultLayerIndex;
+            if (_settings.rootBone != null)
+            {
+                _rigidbodies = _settings.rootBone.GetComponentsInChildren<Rigidbody>();
+                _colliders = _settings.rootBone.GetComponentsInChildren<Collider>();
+            }
         }
 
-        foreach (Rigidbody rb in ragdollRigidbodies)
+        public void ToggleRagdoll(bool isRagdoll)
         {
-            if (isActive)
+            // Toggle Logic Components
+            if (_mainCollider) _mainCollider.enabled = !isRagdoll;
+            if (_agent) _agent.enabled = !isRagdoll;
+            if (_animator) _animator.enabled = !isRagdoll;
+
+            if (_rigidbodies == null) return;
+
+            foreach (var rb in _rigidbodies)
             {
-                rb.isKinematic = false;
-                rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+                if (isRagdoll)
+                {
+                    rb.isKinematic = false;
+                    rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+                }
+                else
+                {
+                    
+                    if (!rb.isKinematic)
+                    {
+                        rb.linearVelocity = Vector3.zero;
+                        rb.angularVelocity = Vector3.zero;
+                    }
+
+                    rb.isKinematic = true;
+                    rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
+                }
             }
-            else
+
+            foreach (var col in _colliders)
             {
-                // Reset for pooling
+                col.enabled = isRagdoll;
+                // Layer Switching: Corpse vs Default
+                col.gameObject.layer = isRagdoll ? _settings.corpseLayerIndex : _settings.defaultLayerIndex;
+            }
+
+            if (isRagdoll)
+            {
+                ApplyDeathForce();
+                _ctx.StartCoroutine(DisablePhysicsAfterDelay());
+            }
+        }
+
+        private void ApplyDeathForce()
+        {
+            var hipRB = _settings.rootBone.GetComponent<Rigidbody>();
+            if (hipRB)
+            {
+                Vector3 force = -_ctx.transform.forward * _settings.deathForceMultiplier;
+                hipRB.AddForce(force, ForceMode.Impulse);
+                hipRB.AddTorque(UnityEngine.Random.insideUnitSphere * (_settings.deathForceMultiplier * 0.1f), ForceMode.Impulse);
+            }
+        }
+
+        private IEnumerator DisablePhysicsAfterDelay()
+        {
+            yield return new WaitForSeconds(_settings.ragdollDisableDelay);
+            if (!_ctx.IsDead) yield break;
+
+            foreach (var rb in _rigidbodies)
+            {
                 if (!rb.isKinematic)
                 {
                     rb.linearVelocity = Vector3.zero;
                     rb.angularVelocity = Vector3.zero;
-                    rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
+                    rb.isKinematic = true;
                 }
-                rb.isKinematic = true;
+                
+            }
+        }
+
+        public void ResetRootBone()
+        {
+            if (_settings.rootBone)
+            {
+                _settings.rootBone.localPosition = Vector3.zero;
+                _settings.rootBone.localRotation = Quaternion.identity;
             }
         }
     }
 
-    private IEnumerator ActivateLootTriggerDelayed(float delay)
+    /// Handles Shaders, Materials, Particle Effects, and Outlines.
+    private class VisualHandler
     {
-        yield return new WaitForSeconds(delay);
+        private readonly EnemyHealth _ctx;
+        private readonly VisualSettings _settings;
+        private readonly SkinnedMeshRenderer _renderer;
+        private MaterialPropertyBlock _propBlock;
 
-        if (interactionCollider != null)
+        private static readonly int DissolveID = Shader.PropertyToID("_Dissolve");
+        private static readonly int EmissionColorID = Shader.PropertyToID("_EmissionColor");
+
+        public bool IsDissolving { get; private set; }
+
+        public VisualHandler(EnemyHealth ctx, VisualSettings settings, SkinnedMeshRenderer renderer)
         {
-            interactionCollider.gameObject.SetActive(true);
+            _ctx = ctx;
+            _settings = settings;
+            _renderer = renderer;
+            _propBlock = new MaterialPropertyBlock();
+        }
 
-            // CRITICAL: Force the child sensor back to "Default" layer.
-            // Even though it's a child of the Hips (which are on "Corpse"), 
-            // explicitly setting the child's layer here overrides inheritance.
-            interactionCollider.gameObject.layer = defaultLayerIndex;
+        public void Reset()
+        {
+            IsDissolving = false;
+            if (_renderer)
+            {
+                _renderer.GetPropertyBlock(_propBlock);
+                _propBlock.Clear();
+                _renderer.SetPropertyBlock(_propBlock);
+            }
+        }
 
-            interactionCollider.enabled = true;
-            interactionCollider.isTrigger = true;
+        public void Flash()
+        {
+            if (_renderer) _ctx.StartCoroutine(FlashRoutine());
+        }
 
-            // Inject the Proxy Script
-            var lootLogic = interactionCollider.gameObject.AddComponent<CorpseLootLogic>();
+        private IEnumerator FlashRoutine()
+        {
+            _renderer.GetPropertyBlock(_propBlock);
+            _propBlock.SetColor(EmissionColorID, Color.white);
+            _renderer.SetPropertyBlock(_propBlock);
+            yield return new WaitForSeconds(_settings.hitFlashDuration);
+            _propBlock.Clear();
+            _renderer.SetPropertyBlock(_propBlock);
+        }
 
-            Outline outline = adventurerModel.GetComponentInChildren<Outline>();
-            lootLogic.Setup(this, outline);
+        public void SpawnBloodEffect(Vector3 pos, GameObject prefab)
+        {
+            if (prefab != null)
+            {
+                var vfx = Instantiate(prefab, pos, Quaternion.identity);
+                Destroy(vfx, _settings.particleLifetime);
+            }
+        }
+
+        public IEnumerator DissolveRoutine()
+        {
+            IsDissolving = true;
+            float timer = 0f;
+            while (timer < _settings.dissolveDuration)
+            {
+                timer += Time.deltaTime;
+                float val = Mathf.Lerp(0f, 1f, timer / _settings.dissolveDuration);
+
+                _renderer.GetPropertyBlock(_propBlock);
+                _propBlock.SetFloat(DissolveID, val);
+                _renderer.SetPropertyBlock(_propBlock);
+                yield return null;
+            }
         }
     }
 
-    private IEnumerator DisableRagdollAfterDelay(float delay)
+    /// Handles interaction sensors, loot spawning, and interaction proxies.
+    private class LootHandler
     {
-        yield return new WaitForSeconds(delay);
+        private readonly EnemyHealth _ctx;
+        private readonly LootSettings _settings;
+        private readonly Outline _outline;
 
-        // Don't freeze if we are already dissolving or revived
-        if (_isDissolving || !isDead) yield break;
-
-        foreach (Rigidbody rb in ragdollRigidbodies)
+        public LootHandler(EnemyHealth ctx, LootSettings settings, Outline outline)
         {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-            rb.isKinematic = true;
+            _ctx = ctx;
+            _settings = settings;
+            _outline = outline;
         }
 
-        // We do NOT disable the colliders here, or they would fall through the floor.
-        // We just freeze them.
-    }
-
-
-    public void HandleExternalTrigger(Collider other)
-    {
-        if (!isDead || _isDissolving) return;
-
-        if (other.CompareTag("Player"))
+        public void Reset()
         {
-            SoundManager.Instance.Play(playerWalksOverEnemyCorpseSound, transform.position);
-            StartCoroutine(HandleCorpseCollectedSequence());
+            if (_outline) _outline.enabled = false;
+
+            if (_settings.interactionSensor != null)
+            {
+                // Remove old proxy if exists
+                var oldProxy = _settings.interactionSensor.GetComponent<CorpseLootLogic>();
+                if (oldProxy) Destroy(oldProxy);
+
+                _settings.interactionSensor.enabled = false;
+                _settings.interactionSensor.isTrigger = false;
+                _settings.interactionSensor.gameObject.SetActive(false);
+            }
         }
-    }
 
-    private IEnumerator HandleCorpseCollectedSequence()
-    {
-        _isDissolving = true;
-
-        Outline outline = adventurerModel.GetComponentInChildren<Outline>();
-        if (outline != null) outline.enabled = false;
-
-        if (CorpseManager.Instance != null) CorpseManager.Instance.UnregisterCorpse(this);
-
-        // Turn off the sensor immediately so we don't trigger twice
-        if (interactionCollider != null) interactionCollider.gameObject.SetActive(false);
-
-        StartCoroutine(SpawnGarbageBoxDelayed());
-
-        yield return StartCoroutine(DissolveRoutine());
-    }
-
-    private IEnumerator SpawnGarbageBoxDelayed()
-    {
-        yield return new WaitForSeconds(spawnBoxDelay);
-
-        if (garbageBoxPrefab != null && _data != null && _data.garbageDataOnDeath != null)
+        public void EnableLootInteraction()
         {
-            // Spawn box at the hip position
-            Vector3 spawnPos = ragdollRootBone.position;
+            _ctx.StartCoroutine(ActivateTriggerRoutine());
+        }
 
-            GameObject box = Instantiate(garbageBoxPrefab, spawnPos, Quaternion.identity);
+        private IEnumerator ActivateTriggerRoutine()
+        {
+            yield return new WaitForSeconds(_settings.interactableDelay);
+
+            if (_settings.interactionSensor != null)
+            {
+                _settings.interactionSensor.gameObject.SetActive(true);
+                //Force sensor to Default layer so player can raycast/collide
+                _settings.interactionSensor.gameObject.layer = 0; // Default
+
+                _settings.interactionSensor.enabled = true;
+                _settings.interactionSensor.isTrigger = true;
+
+                var proxy = _settings.interactionSensor.gameObject.AddComponent<CorpseLootLogic>();
+                proxy.Setup(_ctx, _outline);
+            }
+        }
+
+        public void DisableInteraction()
+        {
+            if (_outline) _outline.enabled = false;
+            if (_settings.interactionSensor) _settings.interactionSensor.gameObject.SetActive(false);
+        }
+
+        public void SpawnGarbageBox(EnemyData data)
+        {
+            if (_settings.garbageBoxPrefab == null || data.garbageDataOnDeath == null) return;
+            _ctx.StartCoroutine(SpawnBoxRoutine(data));
+        }
+
+        private IEnumerator SpawnBoxRoutine(EnemyData data)
+        {
+            yield return new WaitForSeconds(_settings.spawnBoxDelay);
+
+            // Spawn at hips position usually
+            Vector3 spawnPos = _ctx.transform.position;
+            if (_ctx._ragdollConfig.rootBone != null)
+                spawnPos = _ctx._ragdollConfig.rootBone.position;
+
+            GameObject box = Instantiate(_settings.garbageBoxPrefab, spawnPos, Quaternion.identity);
 
             if (box.TryGetComponent(out GarbageItem gItem))
             {
                 gItem.isPooledObject = false;
-                gItem.ActivatePooledInteractable(_data.garbageDataOnDeath);
+                gItem.ActivatePooledInteractable(data.garbageDataOnDeath);
             }
         }
     }
-
-    private IEnumerator DissolveRoutine()
-    {
-        float timer = 0f;
-        while (timer < dissolveDuration)
-        {
-            timer += Time.deltaTime;
-            float dissolveValue = Mathf.Lerp(0f, 1f, timer / dissolveDuration);
-
-            _meshRenderer.GetPropertyBlock(_propBlock);
-            _propBlock.SetFloat(DissolveID, dissolveValue);
-            _meshRenderer.SetPropertyBlock(_propBlock);
-
-            yield return null;
-        }
-
-        ForceReturnToPool();
-    }
-
-    public void ForceReturnToPool()
-    {
-        if (ragdollRootBone != null)
-        {
-            ragdollRootBone.localPosition = Vector3.zero;
-            ragdollRootBone.localRotation = Quaternion.identity;
-        }
-
-        if (EnemyPooler.Instance != null)
-        {
-            EnemyPooler.Instance.ReturnEnemyToPool(_data, this.gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
-    }
-
-    private void ApplyDeathForce()
-    {
-        Rigidbody hipRB = ragdollRootBone.GetComponent<Rigidbody>();
-        if (hipRB != null)
-        {
-            Vector3 backwardDirection = -transform.forward;
-            Vector3 horizontalForce = backwardDirection * deathForceMultiplier;
-            hipRB.AddForce(horizontalForce, ForceMode.Impulse);
-            hipRB.AddTorque(Random.insideUnitSphere * deathForceMultiplier * 0.1f, ForceMode.Impulse);
-        }
-    }
-
-    public void TakeDamage(float damage, Vector3 hitPoint)
-    {
-        if (isDead) return;
-        if (_data == null) return;
-
-        if (DamageTextManager.Instance != null)
-            DamageTextManager.Instance.ShowDamage(damage, hitPoint + Vector3.up * damageTextOffsetY, damage > 150);
-
-        currentHealth -= damage;
-        StartFlash(meshHitFlashDuration);
-        PlayHitEffect(hitPoint);
-
-        SoundManager.Instance.Play(enemyHitSound, transform.position);
-
-        if (healthBar != null) healthBar.UpdateHealthBar(currentHealth, finalMaxHealth);
-        if (enemyBrain != null) enemyBrain.PlayHitAnimation();
-
-        if (currentHealth <= 0) Die();
-    }
-
-    public void TakeDamage(float damage) => TakeDamage(damage, transform.position + Vector3.up);
-
-    private void PlayHitEffect(Vector3 position)
-    {
-        if (_data?.bloodVFX != null)
-        {
-            GameObject effect = Instantiate(_data.bloodVFX, position, Quaternion.identity);
-            Destroy(effect, particleEffectDestroyTime);
-        }
-    }
-
-    public void StartFlash(float duration) { if (_meshRenderer) StartCoroutine(FlashRoutine(duration)); }
-
-    private IEnumerator FlashRoutine(float d)
-    {
-        _meshRenderer.GetPropertyBlock(_propBlock);
-        _propBlock.SetColor(EmissionColorID, Color.white);
-        _meshRenderer.SetPropertyBlock(_propBlock);
-        yield return new WaitForSeconds(d);
-        _propBlock.Clear();
-        _meshRenderer.SetPropertyBlock(_propBlock);
-    }
+    #endregion
 
     private void OnDrawGizmos()
     {
-        if (interactionCollider != null && interactionCollider.enabled)
+        if (_lootConfig.interactionSensor != null && _lootConfig.interactionSensor.enabled)
         {
-            Gizmos.color = isDead ? Color.red : Color.gray;
-            if (interactionCollider is SphereCollider sphere)
+            Gizmos.color = IsDead ? Color.red : Color.gray;
+            if (_lootConfig.interactionSensor is SphereCollider sphere)
             {
                 Gizmos.DrawWireSphere(sphere.transform.TransformPoint(sphere.center), sphere.radius);
             }

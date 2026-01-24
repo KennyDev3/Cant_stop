@@ -41,7 +41,7 @@ public class CorpseManager : MonoBehaviour
             activeCorpses.RemoveAt(0);
 
             // Force it back to pool immediately
-            oldest.ForceReturnToPool();
+            oldest.ReturnToPool();
         }
     }
 }

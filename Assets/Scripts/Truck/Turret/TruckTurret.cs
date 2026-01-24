@@ -164,7 +164,7 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
             return false;
         }
 
-        if (targetHealth.isDead)
+        if (targetHealth.IsDead)
         {
             Debug.Log("It's Dead yo");
             currentTargetCollider = null;
