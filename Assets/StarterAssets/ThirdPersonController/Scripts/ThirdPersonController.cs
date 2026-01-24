@@ -20,94 +20,116 @@ namespace StarterAssets
 #endif
     public class ThirdPersonController : MonoBehaviour
     {
+        #region Configuration
+        [Header("External References")]
         [SerializeField] private StatController _stats;
+        [SerializeField] private TrailRenderer _trailRenderer;
+        [SerializeField] private SoundDef _dashSound; // Renamed to standard convention
 
         [Header("Input Settings")]
         [Tooltip("If true, rotation is controlled by the Mouse cursor (Raycast). If false, it uses the Gamepad/Stick input.")]
         public bool UseMouseRotation = true;
 
-        [Header("Player")]
+        [Header("Movement")]
         public float MoveSpeed = 2.0f;
         public float SprintSpeed = 5.335f;
-        [Tooltip("How fast the character turns to face the mouse/stick")]
-        public float RotationSmoothTime = 0.05f;
         public float SpeedChangeRate = 10.0f;
+        public float RotationSmoothTime = 0.05f;
 
-        [Header("Audio")]
-        public AudioClip LandingAudioClip;
-        public AudioClip[] FootstepAudioClips;
-        [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
-        [SerializeField] private SoundDef dashSound;
-
-        [Space(10)]
+        [Header("Gravity & Grounding")]
         public float Gravity = -15.0f;
         public float FallTimeout = 0.15f;
+        public float GroundedOffset = -0.14f;
+        public float GroundedRadius = 0.28f;
+        public LayerMask GroundLayers;
+        public bool Grounded = true;
 
-        [Header("Player Dash")]
+        [Header("Dash")]
         public float DashSpeed = 20.0f;
         public float DashDuration = 0.2f;
         public float DashCooldown = 1.0f;
         public float InvincibilityDuration = 0.2f;
 
-        [Header("Player Grounded")]
-        public bool Grounded = true;
-        public float GroundedOffset = -0.14f;
-        public float GroundedRadius = 0.28f;
-        public LayerMask GroundLayers;
+        [Header("Audio")]
+        public AudioClip LandingAudioClip;
+        public AudioClip[] FootstepAudioClips;
+        [Range(0, 1)] public float FootstepAudioVolume = 0.5f;
 
-        [Header("Cinemachine")]
+        [Header("Cinemachine (Camera Follow)")]
         public GameObject CinemachineCameraTarget;
         public float TopClamp = 70.0f;
         public float BottomClamp = -30.0f;
         public float CameraAngleOverride = 0.0f;
         public bool LockCameraPosition = false;
+        #endregion
 
+        #region Events
         public event Action OnPickupAnimationComplete;
         public event Action<Vector3> OnDashStart;
+        #endregion
 
-        private float _speed;
-        private float _animationBlend;
-        private float _targetRotation = 0.0f;
-        private float _rotationVelocity;
-        private float _verticalVelocity;
-        private float _terminalVelocity = 53.0f;
-        private PlayerStamina _playerStamina;
-        private PlayerGarbageHandler _playerGarbageHandler;
-
+        #region Internal State
+        // State
+        private PlayerActivityState _currentState = PlayerActivityState.Free;
+        private bool _isPickUpCancelable = false;
         private float _fallTimeoutDelta;
         private float _dashCooldownTimer;
 
+        // Physics variables
+        private float _speed;
+        private float _animationBlend;
+        private float _targetRotation = 0.0f;
+        private float _verticalVelocity;
+        private float _terminalVelocity = 53.0f;
+
+        // Layer caching
         private int _playerLayer;
         private int _phasingPlayerLayer;
-        [SerializeField] private TrailRenderer _trailRenderer;
 
-        private PlayerActivityState _currentState = PlayerActivityState.Free;
-        private bool _isPickUpCancelable = false;
-
-        // Input tracking for gamepad vs mouse persistence
-        private bool _isUsingGamepad = false;
-
-        private int _animIDSpeed;
-        private int _animIDGrounded;
-        private int _animIDFreeFall;
-        private int _animIDMotionSpeed;
-        private int _animIDPickUp;
-
-#if ENABLE_INPUT_SYSTEM
-        private PlayerInput _playerInput;
-#endif
-        private Animator _animator;
+        // Component References
         private CharacterController _controller;
         private StarterAssetsInputs _input;
         private GameObject _mainCamera;
-        private bool _hasAnimator;
+        private PlayerStamina _playerStamina;
+        private PlayerGarbageHandler _playerGarbageHandler;
+
+        // Helper Classes
+        private PlayerAnimatorHandler _animHandler;
+        #endregion
 
         private void Awake()
         {
             if (_mainCamera == null) _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
+
+            _controller = GetComponent<CharacterController>();
+            _input = GetComponent<StarterAssetsInputs>();
+            _playerStamina = GetComponent<PlayerStamina>();
+            _playerGarbageHandler = GetComponent<PlayerGarbageHandler>();
+
+            // Initialize Animator Handler
+            if (TryGetComponent(out Animator animator))
+                _animHandler = new PlayerAnimatorHandler(animator);
+
+            _playerLayer = gameObject.layer;
+#if ENABLE_INPUT_SYSTEM
+            _phasingPlayerLayer = LayerMask.NameToLayer("PhasingPlayer");
+#endif
         }
 
         private void Start()
+        {
+            InitializeStats();
+            _fallTimeoutDelta = FallTimeout;
+        }
+
+        private void Update()
+        {
+            UpdateTimers();
+            CheckGrounded();
+            UpdateStateMachine();
+        }
+
+        private void InitializeStats()
         {
             if (_stats != null)
             {
@@ -115,123 +137,72 @@ namespace StarterAssets
                 _stats.InitializeStat(StatType.SprintSpeed, SprintSpeed);
                 _stats.InitializeStat(StatType.DashDuration, DashDuration);
             }
-
-            _playerLayer = gameObject.layer;
-            _hasAnimator = TryGetComponent(out _animator);
-            _controller = GetComponent<CharacterController>();
-            _input = GetComponent<StarterAssetsInputs>();
-            _playerStamina = GetComponent<PlayerStamina>();
-
-#if ENABLE_INPUT_SYSTEM
-            _playerInput = GetComponent<PlayerInput>();
-            _playerGarbageHandler = GetComponent<PlayerGarbageHandler>();
-            _phasingPlayerLayer = LayerMask.NameToLayer("PhasingPlayer");
-#endif
-            AssignAnimationIDs();
-            _fallTimeoutDelta = FallTimeout;
         }
 
-        private void Update()
+        private void UpdateTimers()
         {
             if (_dashCooldownTimer > 0.0f) _dashCooldownTimer -= Time.deltaTime;
-
-            GroundedCheck();
-            HandleState();
         }
 
-        private void AssignAnimationIDs()
-        {
-            _animIDSpeed = Animator.StringToHash("Speed");
-            _animIDGrounded = Animator.StringToHash("Grounded");
-            _animIDFreeFall = Animator.StringToHash("FreeFall");
-            _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
-            _animIDPickUp = Animator.StringToHash("PickUp");
-        }
+        #region State Machine
 
-        private void HandleState()
+        private void UpdateStateMachine()
         {
             switch (_currentState)
             {
                 case PlayerActivityState.Free:
-                    ApplyGravity();
-                    HandleRotation();
-                    Move();
-                    HandleDashInput();
-                    HandleBoostInput();
+                    UpdateFreeState();
                     break;
                 case PlayerActivityState.PickingUp:
-                    HandlePickingUpState();
+                    UpdatePickingUpState();
                     break;
                 case PlayerActivityState.Dashing:
-                    ApplyGravity();
+                    UpdateDashingState();
                     break;
             }
         }
 
-        private void HandleRotation()
+        private void UpdateFreeState()
         {
-#if ENABLE_INPUT_SYSTEM
-            // GAMEPAD / CONTROLLER MODE
-            if (!UseMouseRotation)
-            {
-                // Force cursor hidden and locked when in Controller mode
-                if (Cursor.visible)
-                {
-                    Cursor.visible = false;
-                    Cursor.lockState = CursorLockMode.Locked;
-                }
-
-                // Use the Input System 'look' vector (usually Right Stick)
-                Vector2 lookInput = _input.look;
-
-                // Only rotate if the stick is actually pushed (deadzone check)
-                if (lookInput.sqrMagnitude > 0.1f)
-                {
-                    float targetAngle = Mathf.Atan2(lookInput.x, lookInput.y) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
-                    Quaternion targetRotation = Quaternion.Euler(0, targetAngle, 0);
-                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 20f);
-                }
-            }
-            // MOUSE MODE
-            else
-            {
-                // Force cursor visible and free when in Mouse mode
-                if (Cursor.lockState != CursorLockMode.None)
-                {
-                    Cursor.visible = true;
-                    Cursor.lockState = CursorLockMode.None;
-                }
-
-                // Perform the Raycast logic (Isometric/Top-down style)
-                Plane playerPlane = new Plane(Vector3.up, transform.position);
-                Ray ray = _mainCamera.GetComponent<Camera>().ScreenPointToRay(Mouse.current.position.ReadValue());
-
-                if (playerPlane.Raycast(ray, out float hitDist))
-                {
-                    Vector3 targetPoint = ray.GetPoint(hitDist);
-                    Vector3 lookDirection = (targetPoint - transform.position).normalized;
-                    lookDirection.y = 0; // Keep rotation flat on the ground
-
-                    if (lookDirection != Vector3.zero)
-                    {
-                        Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
-                        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 20f);
-                    }
-                }
-            }
-#endif
+            ApplyGravity();
+            HandleRotation();
+            HandleMovement();
+            HandleDashInput();
+            HandleBoostInput();
         }
 
-        private void Move()
+        private void UpdatePickingUpState()
         {
-            float currentMoveSpeed = _stats ? _stats.GetStat(StatType.MoveSpeed) : MoveSpeed;
-            float sprintMultiplier = SprintSpeed / MoveSpeed;
-            float currentSprintSpeed = currentMoveSpeed * sprintMultiplier;
+            ApplyGravity();
 
-            float targetSpeed = (_playerStamina != null && _playerStamina.IsBoostActive()) ? currentSprintSpeed : currentMoveSpeed;
-            if (_playerGarbageHandler != null && _playerGarbageHandler.IsOverencumbered) targetSpeed /= 2f;
+            // Allow cancelling pickup if configured and moving
+            if (_isPickUpCancelable && _input.move != Vector2.zero)
+                FinishPickUp();
+
+            // Apply only vertical movement (Gravity)
+            _controller.Move(new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
+
+            _animHandler?.StopMotion();
+        }
+
+        private void UpdateDashingState()
+        {
+            ApplyGravity();
+            // Movement is handled by the Coroutine, but gravity is updated here
+        }
+
+        #endregion
+
+        #region Movement & Physics
+
+        private void HandleMovement()
+        {
+            float targetSpeed = CalculateTargetSpeed();
+
+            // Check for zero input
             if (_input.move == Vector2.zero) targetSpeed = 0.0f;
 
+            // Speed Blending (Acceleration/Deceleration)
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
             float speedOffset = 0.1f;
             float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
@@ -249,8 +220,10 @@ namespace StarterAssets
             _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
             if (_animationBlend < 0.01f) _animationBlend = 0f;
 
+            // Calculate Direction
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
 
+            // Rotation Logic for Movement direction (distinct from Looking direction)
             if (_input.move != Vector2.zero)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
@@ -258,14 +231,118 @@ namespace StarterAssets
 
             Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
 
+            // Move the controller
             _controller.Move(targetDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
-            if (_hasAnimator)
+            // Update Animation
+            float baseSpeed = _speed / (_stats ? _stats.GetStat(StatType.MoveSpeed) : MoveSpeed);
+            _animHandler?.UpdateMovementAnimation(targetDirection.normalized, baseSpeed, transform);
+        }
+
+        private float CalculateTargetSpeed()
+        {
+            float currentMoveSpeed = _stats ? _stats.GetStat(StatType.MoveSpeed) : MoveSpeed;
+            float sprintMultiplier = SprintSpeed / MoveSpeed;
+            float currentSprintSpeed = currentMoveSpeed * sprintMultiplier;
+
+            float targetSpeed = (_playerStamina != null && _playerStamina.IsBoostActive()) ? currentSprintSpeed : currentMoveSpeed;
+
+            if (_playerGarbageHandler != null && _playerGarbageHandler.IsOverencumbered)
+                targetSpeed /= 2f;
+
+            return targetSpeed;
+        }
+
+        private void HandleRotation()
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (UseMouseRotation)
             {
-                _animator.SetFloat(_animIDSpeed, _animationBlend);
-                _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
+                HandleMouseRotation();
+            }
+            else
+            {
+                HandleGamepadRotation();
+            }
+#endif
+        }
+
+#if ENABLE_INPUT_SYSTEM
+        private void HandleMouseRotation()
+        {
+            if (Cursor.lockState != CursorLockMode.None)
+            {
+                Cursor.visible = true;
+                Cursor.lockState = CursorLockMode.None;
+            }
+
+            Plane playerPlane = new Plane(Vector3.up, transform.position);
+            Ray ray = _mainCamera.GetComponent<Camera>().ScreenPointToRay(Mouse.current.position.ReadValue());
+
+            if (playerPlane.Raycast(ray, out float hitDist))
+            {
+                Vector3 targetPoint = ray.GetPoint(hitDist);
+                Vector3 lookDirection = (targetPoint - transform.position).normalized;
+                lookDirection.y = 0;
+
+                if (lookDirection != Vector3.zero)
+                {
+                    Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 20f);
+                }
             }
         }
+
+        private void HandleGamepadRotation()
+        {
+            if (Cursor.visible)
+            {
+                Cursor.visible = false;
+                Cursor.lockState = CursorLockMode.Locked;
+            }
+
+            Vector2 lookInput = _input.look;
+            if (lookInput.sqrMagnitude > 0.1f)
+            {
+                float targetAngle = Mathf.Atan2(lookInput.x, lookInput.y) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
+                Quaternion targetRotation = Quaternion.Euler(0, targetAngle, 0);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 20f);
+            }
+        }
+#endif
+
+        private void ApplyGravity()
+        {
+            if (Grounded)
+            {
+                _fallTimeoutDelta = FallTimeout;
+                _animHandler?.SetFreeFall(false);
+
+                // Constant downward force to keep player grounded
+                if (_verticalVelocity < 0.0f) _verticalVelocity = -2f;
+            }
+            else
+            {
+                if (_fallTimeoutDelta >= 0.0f) _fallTimeoutDelta -= Time.deltaTime;
+                else _animHandler?.SetFreeFall(true);
+
+                _input.jump = false; // Prevent jumping mid-air
+            }
+
+            if (_verticalVelocity < _terminalVelocity)
+                _verticalVelocity += Gravity * Time.deltaTime;
+        }
+
+        private void CheckGrounded()
+        {
+            Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
+            Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
+            _animHandler?.SetGrounded(Grounded);
+        }
+
+        #endregion
+
+        #region Actions (Dash, Boost, Pickup)
 
         private void HandleDashInput()
         {
@@ -274,43 +351,47 @@ namespace StarterAssets
                 _input.jump = false;
                 if (_dashCooldownTimer <= 0.0f)
                 {
-                    SoundManager.Instance.Play(dashSound, transform.position);
-                    StartCoroutine(Dash());
+                    StartCoroutine(DashRoutine());
                 }
             }
         }
 
-        private IEnumerator Dash()
+        private void HandleBoostInput()
+        {
+            if (_input.sprint)
+            {
+                _playerStamina?.TryActivateBoost();
+                _input.sprint = false;
+            }
+        }
+
+        private IEnumerator DashRoutine()
         {
             _currentState = PlayerActivityState.Dashing;
             _dashCooldownTimer = DashCooldown;
+            SoundManager.Instance.Play(_dashSound, transform.position);
 
             if (_trailRenderer != null) _trailRenderer.emitting = true;
-            StartCoroutine(BecomeInvincible(InvincibilityDuration));
 
-            float startTime = Time.time;
+            // Handle Invincibility
+            StartCoroutine(ToggleInvincibility(true, InvincibilityDuration));
 
-            Vector3 dashDirection;
-            if (_input.move != Vector2.zero)
-            {
-                Vector3 inputDir = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
-                float dashAngle = Mathf.Atan2(inputDir.x, inputDir.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
-                dashDirection = Quaternion.Euler(0.0f, dashAngle, 0.0f) * Vector3.forward;
-            }
-            else
-            {
-                dashDirection = transform.forward;
-            }
-
+            // Determine Dash Direction
+            Vector3 dashDirection = CalculateDashDirection();
             OnDashStart?.Invoke(dashDirection);
 
+            float startTime = Time.time;
             float currentDuration = _stats ? _stats.GetStat(StatType.DashDuration) : DashDuration;
 
+            // Dash Loop
             while (Time.time < startTime + currentDuration)
             {
                 Vector3 horizontalMovement = dashDirection.normalized * (DashSpeed * Time.deltaTime);
                 Vector3 verticalMovement = new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime;
+
                 _controller.Move(horizontalMovement + verticalMovement);
+                _animHandler?.UpdateDashAnimation(dashDirection, transform);
+
                 yield return null;
             }
 
@@ -318,15 +399,71 @@ namespace StarterAssets
             _currentState = PlayerActivityState.Free;
         }
 
+        private Vector3 CalculateDashDirection()
+        {
+            if (_input.move != Vector2.zero)
+            {
+                Vector3 inputDir = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
+                float dashAngle = Mathf.Atan2(inputDir.x, inputDir.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
+                return Quaternion.Euler(0.0f, dashAngle, 0.0f) * Vector3.forward;
+            }
+            return transform.forward;
+        }
+
+        private IEnumerator ToggleInvincibility(bool enable, float duration)
+        {
+            if (enable)
+            {
+                gameObject.layer = _phasingPlayerLayer;
+                if (_controller != null) _controller.detectCollisions = false;
+
+                yield return new WaitForSeconds(duration);
+
+                gameObject.layer = _playerLayer;
+                if (_controller != null) _controller.detectCollisions = true;
+            }
+        }
+
+        public bool StartPickUp(bool isCancelable)
+        {
+            if (!Grounded || _currentState != PlayerActivityState.Free) return false;
+
+            _isPickUpCancelable = isCancelable;
+            _currentState = PlayerActivityState.PickingUp;
+            _animHandler?.TriggerPickUp();
+            return true;
+        }
+
+        private void FinishPickUp()
+        {
+            if (_currentState == PlayerActivityState.PickingUp)
+            {
+                _currentState = PlayerActivityState.Free;
+                OnPickupAnimationComplete?.Invoke();
+                _animHandler?.ReturnToMovement();
+            }
+        }
+
+        public void OnPickupAnimationFinished() => FinishPickUp();
+
+        #endregion
+
+        #region Public Methods & Animation Events
+
+        public void UpgradePlayerSpeed(float increaseAmount)
+        {
+            MoveSpeed += increaseAmount;
+            SprintSpeed += increaseAmount;
+        }
+
+        public bool IsInvulnerable() => _currentState == PlayerActivityState.Dashing;
+
         private void OnFootstep(AnimationEvent animationEvent)
         {
-            if (animationEvent.animatorClipInfo.weight > 0.5f)
+            if (animationEvent.animatorClipInfo.weight > 0.5f && FootstepAudioClips.Length > 0)
             {
-                if (FootstepAudioClips.Length > 0)
-                {
-                    var index = UnityEngine.Random.Range(0, FootstepAudioClips.Length);
-                    AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
-                }
+                var index = UnityEngine.Random.Range(0, FootstepAudioClips.Length);
+                AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
             }
         }
 
@@ -338,93 +475,68 @@ namespace StarterAssets
             }
         }
 
-        public void UpgradePlayerSpeed(float increaseAmount)
-        {
-            MoveSpeed += increaseAmount;
-            SprintSpeed += increaseAmount;
-        }
+        #endregion
 
-        private void GroundedCheck()
-        {
-            Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
-            Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
-            if (_hasAnimator) _animator.SetBool(_animIDGrounded, Grounded);
-        }
+        #region Nested Helper Classes
 
-        private void ApplyGravity()
+        
+        private class PlayerAnimatorHandler
         {
-            if (Grounded)
+            private readonly Animator _animator;
+
+            // Animation IDs
+            private readonly int _animIDSpeed;
+            private readonly int _animIDGrounded;
+            private readonly int _animIDFreeFall;
+            private readonly int _animIDMotionSpeed;
+            private readonly int _animIDPickUpTrigger; 
+            private readonly int _animIDReturnToMovement; 
+            private readonly int _animIDVelocityX;
+            private readonly int _animIDVelocityZ;
+
+            public PlayerAnimatorHandler(Animator animator)
             {
-                _fallTimeoutDelta = FallTimeout;
-                if (_hasAnimator) _animator.SetBool(_animIDFreeFall, false);
-                if (_verticalVelocity < 0.0f) _verticalVelocity = -2f;
+                _animator = animator;
+                _animIDSpeed = Animator.StringToHash("Speed");
+                _animIDGrounded = Animator.StringToHash("Grounded");
+                _animIDFreeFall = Animator.StringToHash("FreeFall");
+                _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+                _animIDPickUpTrigger = Animator.StringToHash("StartPickUpTrigger"); // Assuming this was the trigger string
+                _animIDReturnToMovement = Animator.StringToHash("ReturnToMovement"); // Assuming this was the trigger string
+                _animIDVelocityX = Animator.StringToHash("VelocityX");
+                _animIDVelocityZ = Animator.StringToHash("VelocityZ");
             }
-            else
+
+            public void UpdateMovementAnimation(Vector3 targetDirection, float speedRatio, Transform playerTransform)
             {
-                if (_fallTimeoutDelta >= 0.0f) _fallTimeoutDelta -= Time.deltaTime;
-                else if (_hasAnimator) _animator.SetBool(_animIDFreeFall, true);
-                _input.jump = false;
+                Vector3 localVelocity = playerTransform.InverseTransformDirection(targetDirection);
+                float blendMagnitude = Mathf.Clamp01(speedRatio);
+
+                _animator.SetFloat(_animIDVelocityX, localVelocity.x * blendMagnitude, 0.05f, Time.deltaTime);
+                _animator.SetFloat(_animIDVelocityZ, localVelocity.z * blendMagnitude, 0.05f, Time.deltaTime);
+                _animator.SetFloat(_animIDMotionSpeed, speedRatio);
             }
 
-            if (_verticalVelocity < _terminalVelocity) _verticalVelocity += Gravity * Time.deltaTime;
-        }
+            public void UpdateDashAnimation(Vector3 dashDirection, Transform playerTransform)
+            {
+                Vector3 localDashDir = playerTransform.InverseTransformDirection(dashDirection.normalized);
+                _animator.SetFloat(_animIDVelocityX, localDashDir.x, 0.05f, Time.deltaTime);
+                _animator.SetFloat(_animIDVelocityZ, localDashDir.z, 0.05f, Time.deltaTime);
+                _animator.SetFloat(_animIDMotionSpeed, 2.5f);
+            }
 
-        private void HandlePickingUpState()
-        {
-            ApplyGravity();
-            if (_isPickUpCancelable && _input.move != Vector2.zero) FinishPickUp();
-            _controller.Move(new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
-            if (_hasAnimator)
+            public void StopMotion()
             {
                 _animator.SetFloat(_animIDSpeed, 0f);
                 _animator.SetFloat(_animIDMotionSpeed, 0f);
             }
+
+            public void SetGrounded(bool grounded) => _animator.SetBool(_animIDGrounded, grounded);
+            public void SetFreeFall(bool isFalling) => _animator.SetBool(_animIDFreeFall, isFalling);
+            public void TriggerPickUp() => _animator.SetTrigger(_animIDPickUpTrigger);
+            public void ReturnToMovement() => _animator.SetTrigger(_animIDReturnToMovement);
         }
 
-        private IEnumerator BecomeInvincible(float duration)
-        {
-            gameObject.layer = _phasingPlayerLayer;
-            if (_controller != null) _controller.detectCollisions = false;
-            yield return new WaitForSeconds(duration);
-            gameObject.layer = _playerLayer;
-            if (_controller != null) _controller.detectCollisions = true;
-        }
-
-        public bool IsInvulnerable() => _currentState == PlayerActivityState.Dashing;
-
-        private void HandleBoostInput()
-        {
-            if (_input.sprint)
-            {
-                _playerStamina?.TryActivateBoost();
-                _input.sprint = false;
-            }
-        }
-
-        public bool StartPickUp(bool isCancelable)
-        {
-            if (!Grounded || _currentState != PlayerActivityState.Free) return false;
-            _isPickUpCancelable = isCancelable;
-            _currentState = PlayerActivityState.PickingUp;
-            if (_hasAnimator) _animator.SetTrigger("StartPickUpTrigger");
-            return true;
-        }
-
-        public void OnPickupAnimationFinished() => FinishPickUp();
-
-        private void FinishPickUp()
-        {
-            if (_currentState == PlayerActivityState.PickingUp)
-            {
-                _currentState = PlayerActivityState.Free;
-                OnPickupAnimationComplete?.Invoke();
-                if (_hasAnimator) _animator.SetTrigger("ReturnToMovement");
-            }
-        }
-
-
-      
+        #endregion
     }
-
-
 }
