@@ -20,12 +20,12 @@ public class GarbageDropOff : MonoBehaviour, IInteractable
 
     public void Interact(PlayerInteractor interactor)
     {
-        var garbageHandler = interactor.GetComponent<PlayerGarbageHandler>();
-        if (garbageHandler != null)
-        {
-            int cashEarned = garbageHandler.DropOffGarbage();
-            // In the future, you would add cashEarned to a Game Manager script
-        }
+        //var garbageHandler = interactor.GetComponent<PlayerGarbageHandler>();
+        //if (garbageHandler != null)
+        //{
+        //    int cashEarned = garbageHandler.DropOffGarbage();
+        //    // In the future, you would add cashEarned to a Game Manager script
+        //}
     }
 
     public void Highlight()
