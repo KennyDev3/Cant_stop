@@ -190,6 +190,15 @@ public class AdvancedDisposalArea : MonoBehaviour
             if (bundle == null) break;
 
             _currentAccumulatedValue += valPerPulse;
+
+            // Notify LevelObjectiveManager garbage is accumulated towards spawning a prot 
+
+            if (LevelObjectiveManager.Instance != null)
+            {
+                LevelObjectiveManager.Instance.AddProgress(valPerPulse);
+            }
+            //////////////
+            
             bundle.ShrinkToPercentage(1f - ((float)i / pulses));
 
             if (processingMoneySound != null)

@@ -25,13 +25,11 @@ public class PlayerGarbageHandler : MonoBehaviour
     [SerializeField] private Transform throwOrigin;
 
     [Header("Throw Charge Settings")]
-    [SerializeField] private float minThrowForce = 5f;    // Force if tapped
-    [SerializeField] private float maxThrowForce = 15f;   // Force if held fully
-    [SerializeField] private float maxChargeTime = 2.0f;  // Time in seconds to reach max force
-    [Tooltip("1.0 = 45 degree throw. Higher = Higher arc.")]
+    [SerializeField] private float minThrowForce = 5f;
+    [SerializeField] private float maxThrowForce = 15f;
+    [SerializeField] private float maxChargeTime = 2.0f;
     [SerializeField] private float throwUpwardModifier = 1.0f;
 
-    // Internal state for charging
     private bool _isCharging = false;
     private float _chargeStartTime = 0f;
 
@@ -43,7 +41,6 @@ public class PlayerGarbageHandler : MonoBehaviour
 
 
     [Header("--- DEBUGGING ---")]
-    [Tooltip("Enable to use debug keys and features below.")]
     [SerializeField] private bool enableDebugCheats = true;
     [SerializeField] private Key debugAddKey = Key.T;
     [SerializeField] private bool startWithFullInventory = false;
@@ -52,11 +49,7 @@ public class PlayerGarbageHandler : MonoBehaviour
     private GarbageItem _currentItemToCollect;
     private ThirdPersonController _playerController;
 
-    public bool IsOverencumbered
-    {
-        get { return _currentCapacity > maxCapacity; }
-    }
-
+    public bool IsOverencumbered => _currentCapacity > maxCapacity;
     public int GetBaseMaxCapacity() => maxCapacity;
     public int GetPlayerStrength() => playerStrength;
     public float GetMoney() => _money;
@@ -75,14 +68,8 @@ public class PlayerGarbageHandler : MonoBehaviour
         _playerController = GetComponent<ThirdPersonController>();
         _input = GetComponent<StarterAssetsInputs>();
 
-        if (_playerController == null)
-        {
-            Debug.LogError("Player is missing ThirdPersonController!");
-        }
-        else
-        {
-            _playerController.OnPickupAnimationComplete += FinalizePickup;
-        }
+        if (_playerController == null) Debug.LogError("Player is missing ThirdPersonController!");
+        else _playerController.OnPickupAnimationComplete += FinalizePickup;
     }
 
     private void Start()
@@ -90,10 +77,7 @@ public class PlayerGarbageHandler : MonoBehaviour
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
         onMoneyChanged.Invoke(_money);
 
-        if (enableDebugCheats && startWithFullInventory)
-        {
-            FillInventoryDebug();
-        }
+        if (enableDebugCheats && startWithFullInventory) FillInventoryDebug();
     }
 
     private void Update()
@@ -102,28 +86,21 @@ public class PlayerGarbageHandler : MonoBehaviour
 
         if (enableDebugCheats && Keyboard.current != null)
         {
-            if (Keyboard.current[debugAddKey].wasPressedThisFrame)
-            {
-                AddDebugGarbage();
-            }
+            if (Keyboard.current[debugAddKey].wasPressedThisFrame) AddDebugGarbage();
         }
     }
 
     void OnDestroy()
     {
-        if (_playerController != null)
-        {
-            _playerController.OnPickupAnimationComplete -= FinalizePickup;
-        }
+        if (_playerController != null) _playerController.OnPickupAnimationComplete -= FinalizePickup;
     }
 
     // ===================================
-    // THROW CHARGING LOGIC
+    // THROW LOGIC
     // ===================================
 
     private void HandleThrowLogic()
     {
-        // 1. Start Charging
         if (_input.chuck && !_isCharging)
         {
             if (_carriedGarbage.Count > 0)
@@ -133,33 +110,23 @@ public class PlayerGarbageHandler : MonoBehaviour
             }
             else
             {
-                // Reset input so it doesn't spam logs if empty
-                if (_input.chuck) Debug.LogWarning("[Throw] Cannot throw: Inventory Empty.");
                 _input.chuck = false;
             }
         }
 
-        // 2. Process Charge while button is held
         if (_isCharging)
         {
             float currentHoldDuration = Time.time - _chargeStartTime;
 
-            // Scenario A: Max Charge Reached (Auto Release)
             if (currentHoldDuration >= maxChargeTime)
             {
                 PerformThrow(maxThrowForce);
                 ResetChargeState();
             }
-            // Scenario B: Player Released Button (Manual Release)
             else if (!_input.chuck)
             {
-                // Calculate percentage (0.0 to 1.0)
                 float chargePercent = Mathf.Clamp01(currentHoldDuration / maxChargeTime);
-
-                // Lerp force
                 float finalForce = Mathf.Lerp(minThrowForce, maxThrowForce, chargePercent);
-
-
                 PerformThrow(finalForce);
                 ResetChargeState();
             }
@@ -169,8 +136,6 @@ public class PlayerGarbageHandler : MonoBehaviour
     private void ResetChargeState()
     {
         _isCharging = false;
-        // We do NOT set _input.chuck to false here, to prevent input fighting 
-        // if the player is still physically holding the key after an auto-throw.
     }
 
     public void PerformThrow(float calculatedForce)
@@ -179,7 +144,7 @@ public class PlayerGarbageHandler : MonoBehaviour
 
         if (garbageBundlePrefab == null || throwOrigin == null)
         {
-            Debug.LogError("GarbageHandler: Missing Prefab or ThrowOrigin assignment.");
+            Debug.LogError("GarbageHandler: Missing Prefab or ThrowOrigin.");
             return;
         }
 
@@ -191,13 +156,9 @@ public class PlayerGarbageHandler : MonoBehaviour
             Vector3 upForce = Vector3.up * throwUpwardModifier;
             Vector3 forwardForce = transform.forward;
             Vector3 finalDir = (forwardForce + upForce).normalized;
-
             float fullnessRatio = (float)_currentCapacity / maxCapacity;
 
             SoundManager.Instance.Play(throwGarbageSound, transform.position);
-
-            Debug.Log($"<color=yellow>[Physics] Launching Bundle! Force: {calculatedForce} | Dir: {finalDir}</color>");
-
             bundleScript.InitializeBundle(_carriedGarbage, finalDir, calculatedForce, fullnessRatio);
         }
 
@@ -207,7 +168,7 @@ public class PlayerGarbageHandler : MonoBehaviour
     }
 
     // ===================================
-    // GARBAGE COLLECTION LOGIC
+    // GARBAGE COLLECTION
     // ===================================
 
     private bool AddGarbageToInventory(GarbageData data)
@@ -216,14 +177,6 @@ public class PlayerGarbageHandler : MonoBehaviour
         _carriedGarbage.Add(data);
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
         SoundManager.Instance.Play(garbageAddedToIventorySound, transform.position);
-
-
-        Debug.Log($"Collected {data.itemName}. Current capacity: {_currentCapacity}/{maxCapacity}");
-
-        if (IsOverencumbered)
-        {
-            Debug.Log("Player is now overencumbered! Movement penalties should apply.");
-        }
         return true;
     }
 
@@ -231,30 +184,20 @@ public class PlayerGarbageHandler : MonoBehaviour
     {
         GarbageData data = garbageItem.GetGarbageData();
 
-        if (playerStrength < data.garbageTier)
-        {
-            Debug.LogWarning($"Not strong enough to pick up {data.itemName} (Tier {data.garbageTier}).");
-            return false;
-        }
+        if (playerStrength < data.garbageTier) return false;
 
         if (_playerController.StartPickUp(false))
         {
             _currentItemToCollect = garbageItem;
             SoundManager.Instance.Play(singleGarbagePickUpSound, transform.position);
-
-            // Debug.Log($"Initiated pickup sequence for {data.itemName}.");
             return true;
         }
-        else
-        {
-            return false;
-        }
+        return false;
     }
 
     private void FinalizePickup()
     {
         if (_currentItemToCollect == null) return;
-
         GarbageData data = _currentItemToCollect.GetGarbageData();
         AddGarbageToInventory(data);
         _currentItemToCollect.NotifyCollected();
@@ -264,14 +207,10 @@ public class PlayerGarbageHandler : MonoBehaviour
     public bool TryInstantCollect(GarbageItem item)
     {
         GarbageData data = item.GetGarbageData();
+        SoundManager.Instance.Play(areaOfEffectPickupSound, transform.position);
 
-        SoundManager.Instance.Play(areaOfEffectPickupSound, transform.position);    
+        if (playerStrength < data.garbageTier) return false;
 
-        if (playerStrength < data.garbageTier)
-        {
-            Debug.Log("You are too weak to pick this item up");
-            return false;
-        }
         AddGarbageToInventory(data);
         item.NotifyCollected();
         return true;
@@ -281,52 +220,21 @@ public class PlayerGarbageHandler : MonoBehaviour
     {
         List<GarbageData> bundleContents = bundle.GetContents();
         int bundleWeight = 0;
-
         foreach (var item in bundleContents) bundleWeight += item.capacityCost;
-
-        foreach (var item in bundleContents)
-        {
-            _carriedGarbage.Add(item);
-        }
+        foreach (var item in bundleContents) _carriedGarbage.Add(item);
 
         _currentCapacity += bundleWeight;
-
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
-
         SoundManager.Instance.Play(singleGarbagePickUpSound, transform.position);
-        Debug.Log($"Picked up bundle worth {bundleWeight} weight.");
-
         return true;
     }
 
-    public int DropOffGarbage()
-    {
-        int totalValue = 0;
-        foreach (var garbage in _carriedGarbage)
-        {
-            totalValue += garbage.value;
-        }
-
-        Debug.Log($"Dropped off {_carriedGarbage.Count} items for ${totalValue}");
-        _money += totalValue;
-
-        _carriedGarbage.Clear();
-        _currentCapacity = 0;
-
-        onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
-        onMoneyChanged.Invoke(_money);
-
-        return totalValue;
-    }
-
+   
     // ===================================
     // ECONOMY & UPGRADES
     // ===================================
 
-    public bool CanAfford(float amount)
-    {
-        return _money >= amount;
-    }
+    public bool CanAfford(float amount) => _money >= amount;
 
     public bool Spend(float amount)
     {
@@ -336,29 +244,21 @@ public class PlayerGarbageHandler : MonoBehaviour
         {
             _money -= amount;
             onMoneyChanged.Invoke(_money);
-            Debug.Log($"Spent ${amount:F2}. New balance: ${_money:F2}");
             return true;
         }
-        else
-        {
-            float needed = amount - _money;
-            Debug.LogWarning($"Not enough funds! Need ${needed:F2} more.");
-            return false;
-        }
+        return false;
     }
 
     public void AddMoney(float amount)
     {
         _money += amount;
         onMoneyChanged.Invoke(_money);
-        Debug.Log($"Received payment: ${amount}. New Balance: ${_money}");
     }
 
     public void UpgradeMaxCapacity(int increaseAmount)
     {
         if (increaseAmount <= 0) return;
         maxCapacity += increaseAmount;
-        Debug.Log($"Max Capacity upgraded to {maxCapacity}.");
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
     }
 
@@ -366,17 +266,15 @@ public class PlayerGarbageHandler : MonoBehaviour
     {
         if (increaseAmount <= 0) return;
         playerStrength += increaseAmount;
-        Debug.Log($"Player Strength upgraded to Tier {playerStrength}.");
     }
 
     // ===================================
-    // DEBUG HELPERS
+    // DEBUG / HELPERS
     // ===================================
 
     private void AddDebugGarbage()
     {
         GarbageData dataToAdd = debugTestItem;
-
         if (dataToAdd == null)
         {
             dataToAdd = ScriptableObject.CreateInstance<GarbageData>();
@@ -385,15 +283,12 @@ public class PlayerGarbageHandler : MonoBehaviour
             dataToAdd.capacityCost = 2;
             dataToAdd.garbageTier = 1;
         }
-
         AddGarbageToInventory(dataToAdd);
     }
 
     private void FillInventoryDebug()
     {
-        Debug.Log("Debug: Filling Inventory...");
         int safeGuard = 0;
-
         while (!IsOverencumbered && safeGuard < 100)
         {
             AddDebugGarbage();
@@ -404,22 +299,12 @@ public class PlayerGarbageHandler : MonoBehaviour
     public void AddRefundedGarbage(List<GarbageData> data)
     {
         if (data == null || data.Count == 0) return;
-
         foreach (var item in data)
         {
             _carriedGarbage.Add(item);
             _currentCapacity += item.capacityCost;
         }
-
-        // Update UI and play sound
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
         SoundManager.Instance.Play(garbageAddedToIventorySound, transform.position);
-
-        Debug.Log($"<color=cyan>[Refund]</color> Received {data.Count} items back. New Capacity: {_currentCapacity}/{maxCapacity}");
-
-        if (IsOverencumbered)
-        {
-            Debug.Log("<color=orange>Refund made you overencumbered!</color>");
-        }
     }
 }

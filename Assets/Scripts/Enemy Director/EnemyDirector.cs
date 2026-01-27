@@ -168,6 +168,8 @@ public class EnemyDirector : MonoBehaviour
 
             if (spawnPos != Vector3.zero && ExecuteSpawn(selected, spawnPos))
             {
+
+
                 trickleCredits -= selected.spawnCost;
                 spawnedThisBeat++;
             }
@@ -233,6 +235,9 @@ public class EnemyDirector : MonoBehaviour
 
     private bool ExecuteSpawn(EnemyData data, Vector3 pos)
     {
+        // safety check
+        if (EnemyPooler.Instance == null) return false;
+
         float hpMult = DifficultyManager.Instance != null ? DifficultyManager.Instance.HpMultiplier : 1f;
         float dmgMult = DifficultyManager.Instance != null ? DifficultyManager.Instance.DamageMultiplier : 1f;
 

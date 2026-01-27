@@ -15,6 +15,14 @@ public class EnemyPooler : MonoBehaviour
         Instance = this;
     }
 
+    void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
+    }
+
     public GameObject GetEnemy(EnemyData data, Vector3 position, Quaternion rotation, float hpMult, float dmgMult)
     {
         if (data == null)
