@@ -46,16 +46,29 @@ public class PlayerHealth : MonoBehaviour
     private Coroutine _flashCoroutine;
     private Coroutine _shakeCoroutine;
 
+    public float GetCurrentHealth() => currentHealth;
+
 
 
     void Start()
     {
-        currentHealth = maxHealth;
+        // --- PERSISTENCE LOGIC ---
+        if (GameManager.Instance != null && GameManager.Instance.PersistedHealth > 0)
+        {
+            currentHealth = GameManager.Instance.PersistedHealth;
+        }
+
+        else
+        {
+            currentHealth = maxHealth;
+        }
+
         thirdPersonController = GetComponent<ThirdPersonController>();
         characterController = GetComponent<CharacterController>();
         _parryController = GetComponent<PlayerParryController>();
 
-        onHealthChanged.Invoke(currentHealth, maxHealth); // Initial UI update
+        onHealthChanged.Invoke(currentHealth, maxHealth);
+
 
         if (globalVolume != null && globalVolume.profile.TryGet(out _vignette))
         {

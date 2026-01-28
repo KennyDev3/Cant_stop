@@ -36,8 +36,13 @@ public class DifficultyManager : MonoBehaviour
 
     void Awake()
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
         Instance = this;
+        DontDestroyOnLoad(gameObject); // ADD THIS LINE
         _currentInterval = profile.initialSafeTime;
     }
 

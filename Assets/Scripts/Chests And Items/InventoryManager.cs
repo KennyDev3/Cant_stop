@@ -2,12 +2,10 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 
-
 public class InventoryManager : MonoBehaviour
 {
     public event Action OnItemPickedUp;
 
-    // Debugger to help spawn with items
     [System.Serializable]
     public struct DebugItemEntry
     {
@@ -15,16 +13,18 @@ public class InventoryManager : MonoBehaviour
         [Min(1)] public int count;
     }
 
+    public Dictionary<ItemSO, int> GetInventory() => _inventory;
+
     [Header("Debugging")]
     [SerializeField] private List<DebugItemEntry> startingItems;
 
-
-    //
-
+    // ---  VISUAL DEBUG LIST ---
+    [Header("Live Inventory View (Read Only)")]
+    [SerializeField] private List<string> liveInventoryDebug = new List<string>();
+    // ------------------------------
 
     private Dictionary<ItemSO, int> _inventory = new Dictionary<ItemSO, int>();
 
-    // References to the entities that get buffed
     [SerializeField] private StatController playerStats;
     [SerializeField] private StatController turretStats;
     private UIManager _uiManager;
@@ -33,48 +33,61 @@ public class InventoryManager : MonoBehaviour
     {
         _uiManager = FindFirstObjectByType<UIManager>();
 
-        // Spawn with added Items
+        if (_uiManager == null)
+            Debug.LogError("<color=red>[INVENTORY CRITICAL]</color> UIManager not found in Start!");
+
+        // --- PERSISTENCE LOGIC ---
+        if (GameManager.Instance != null && GameManager.Instance.PersistedInventory.Count > 0)
+        {
+            // LOG: Use the Instance ID to see WHICH GameManager we are talking to
+            Debug.Log($"<color=cyan>[INVENTORY LOAD]</color> Reading from GameManager (ID: {GameManager.Instance.GetInstanceID()}). Found {GameManager.Instance.PersistedInventory.Count} items.");
+
+            _inventory = new Dictionary<ItemSO, int>(GameManager.Instance.PersistedInventory);
+
+            if (_uiManager != null)
+            {
+                foreach (var entry in _inventory)
+                    _uiManager.UpdateItemDisplay(entry.Key, entry.Value);
+            }
+        }
+        else
+        {
+            // LOG: Helpful warning
+            string gmStatus = GameManager.Instance == null ? "NULL" : "Empty";
+            Debug.LogWarning($"<color=yellow>[INVENTORY LOAD FAILED]</color> GameManager is {gmStatus}. Starting fresh.");
+        }
+        // -------------------------
+
         if (startingItems != null && startingItems.Count > 0)
         {
             ProcessStartingItems();
         }
 
-
+        RecalculateAllStats();
+        UpdateDebugList(); // Update the visual list on Start
     }
 
-    // ================================================================ DEBUGGING
-    // Process the list from the inspector
     private void ProcessStartingItems()
     {
         foreach (var entry in startingItems)
         {
             if (entry.item == null) continue;
 
-            // Add directly to the internal dictionary
             if (_inventory.ContainsKey(entry.item))
                 _inventory[entry.item] += entry.count;
             else
                 _inventory.Add(entry.item, entry.count);
 
-            Debug.Log($"<color=yellow>DEBUG LOAD:</color> Added {entry.count}x {entry.item.itemName}");
-
-            // Sync UI
             if (_uiManager != null)
                 _uiManager.UpdateItemDisplay(entry.item, _inventory[entry.item]);
         }
-
-       
-        RecalculateAllStats();
-
+        UpdateDebugList();
     }
-    // ================================================================ DEBUGGING
 
     public void AddItem(ItemSO item)
     {
-
         OnItemPickedUp?.Invoke();
 
-        // 1. Add to dictionary
         if (_inventory.ContainsKey(item))
             _inventory[item]++;
         else
@@ -82,31 +95,27 @@ public class InventoryManager : MonoBehaviour
 
         Debug.Log($"Picked up {item.itemName}. Stack: {_inventory[item]}");
 
-        // 2. Recalculate all stats (simplest way to handle stacking without bugs)
         RecalculateAllStats();
-
-
-        // DEBUGGING LOGIC
-
-        //if (turretStats != null) ============================================> Turret Attack Speed Debug 
-        //{
-        //    float currentSpeed = turretStats.GetStat(StatType.FireRate);
-
-        //    // Color formatting makes it easy to see in the console
-        //    Debug.Log($"<color=green>PICKUP CONFIRMED:</color> Added {item.itemName}. " +
-        //              $"<color=cyan>New Fire Rate: {currentSpeed} shots/sec</color>");
-        //}
+        UpdateDebugList(); // Update the visual list on Pickup
 
         if (_uiManager != null)
-    {
-        // Update Item Bar UI For more items
-        _uiManager.UpdateItemDisplay(item, _inventory[item]);
-
-        // Show Fading Item description Panel
-        _uiManager.ShowItemPopup(item);
-
+        {
+            _uiManager.UpdateItemDisplay(item, _inventory[item]);
+            _uiManager.ShowItemPopup(item);
         }
     }
+
+    // --- HELPER FOR DEBUGGING ---
+    private void UpdateDebugList()
+    {
+        liveInventoryDebug.Clear();
+        foreach (var kvp in _inventory)
+        {
+            string itemName = kvp.Key != null ? kvp.Key.itemName : "Unknown Item";
+            liveInventoryDebug.Add($"{itemName} [x{kvp.Value}]");
+        }
+    }
+    // --------------------------------
 
     private void RecalculateAllStats()
     {
@@ -125,25 +134,16 @@ public class InventoryManager : MonoBehaviour
                 if (turretStats) item.ApplyEffect(turretStats, stack);
         }
 
-        
-
         if (playerStats)
         {
-            // Find all scripts on the player that care about stats (OrbController, Aura, etc)
             var receivers = playerStats.GetComponents<IStatReceiver>();
             foreach (var receiver in receivers) receiver.OnStatsRecalculated();
         }
 
         if (turretStats)
         {
-            // Find all scripts on the turret (TruckTurret)
             var receivers = turretStats.GetComponents<IStatReceiver>();
             foreach (var receiver in receivers) receiver.OnStatsRecalculated();
         }
     }
-
-
-
-
-
 }

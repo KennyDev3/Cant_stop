@@ -30,10 +30,8 @@ public class LevelObjectiveManager : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance != null && Instance != this) Destroy(gameObject);
+        
         Instance = this;
-
-        //Store original meter size
 
         if (meterContainer != null)
         {
@@ -44,6 +42,12 @@ public class LevelObjectiveManager : MonoBehaviour
     private void Start()
     {
         UpdateUI();
+
+        if (GameManager.Instance != null)
+        {
+            // We'll add this method to GameManager in a moment
+            targetGarbageValue = GameManager.Instance.GetTargetGoalForCurrentLevel();
+        }
     }
 
     private void UpdateUI()

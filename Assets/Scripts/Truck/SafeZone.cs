@@ -17,7 +17,7 @@ public class SafeZone : MonoBehaviour
             {
                 // Logic to enable shop interaction can be triggered here
             }
-            GameManager.Instance.IncrementRotation();
+            //GameManager.Instance.IncrementRotation();
         }
     }
 
