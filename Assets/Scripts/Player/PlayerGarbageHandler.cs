@@ -74,6 +74,18 @@ public class PlayerGarbageHandler : MonoBehaviour
 
     private void Start()
     {
+        // --- PERSISTENCE LOGIC ---
+        if (GameManager.Instance != null && GameManager.Instance.PersistedHealth > 0)
+        {
+            // We use PersistedHealth as a check to see if a run is actually in progress
+            _money = GameManager.Instance.PersistedMoney;
+
+            // If your items increase capacity, they will be handled by RecalculateAllStats
+            // But if you bought permanent upgrades, we should save/load maxCapacity too
+            // maxCapacity = GameManager.Instance.PersistedMaxCapacity; 
+        }
+        // -------------------------
+
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
         onMoneyChanged.Invoke(_money);
 

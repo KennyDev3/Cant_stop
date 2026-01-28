@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 public enum GameState
 {
@@ -20,116 +21,143 @@ public class GameManager : MonoBehaviour
     [SerializeField] private string mainMenuSceneName = "MainMenu";
     [SerializeField] private string hubSceneName = "HubScene";
 
-    public event Action<GameState> OnStateChanged;
+    [Header("Level Sequence")]
+    [Tooltip("The exact names of your scenes in order. e.g. World_1, World_2")]
+    [SerializeField] private List<string> levelOrder = new List<string>();
+
+    [Header("Persistent Run Data")]
+    public float PersistedHealth = -1;
+    public Dictionary<ItemSO, int> PersistedInventory = new Dictionary<ItemSO, int>();
+    public float PersistedMoney = 0;
+    public float PersistedWaveCredits = 0;
+    public float PersistedTrickleCredits = 0;
+    public int CurrentRotation { get; private set; }
+    public int KillCount { get; private set; }
 
     public GameState CurrentState { get; private set; }
-    public int CurrentRotation { get; private set; }
-
-    public int KillCount { get; private set; }
+    public event Action<GameState> OnStateChanged;
     public event Action<int> OnKillCountChanged;
 
-    private Coroutine _hitStopCoroutine;
     private float _defaultFixedDeltaTime;
+    private Coroutine _hitStopCoroutine;
+
+    [Header("Level Objectives")]
+    [Tooltip("Index 0 = World 1, Index 1 = World 2, etc.")]
+    [SerializeField] private List<int> levelGoals = new List<int> { 50, 200 };
 
     private void Awake()
     {
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
-        }
-        else
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
+            return;
         }
 
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+
+        _defaultFixedDeltaTime = Time.fixedDeltaTime;
         Time.maximumDeltaTime = 0.15f;
     }
 
-    private void OnEnable()
-    {
-        EnemyHealth.OnEnemyDeath += HandleEnemyDeath;
-    }
-
-    private void OnDisable()
-    {
-        EnemyHealth.OnEnemyDeath -= HandleEnemyDeath;
-    }
+    private void OnEnable() => EnemyHealth.OnEnemyDeath += HandleEnemyDeath;
+    private void OnDisable() => EnemyHealth.OnEnemyDeath -= HandleEnemyDeath;
 
     private void Start()
     {
-        _defaultFixedDeltaTime = Time.fixedDeltaTime;
-
         if (SceneManager.GetActiveScene().name == mainMenuSceneName)
         {
             SetState(GameState.MainMenu);
         }
         else
         {
-            StartRun();
+            if (PersistedHealth <= 0)
+            {
+                StartRun();
+            }
+            else
+            {
+                SetState(GameState.Playing);
+            }
         }
+    }
+
+    public void SaveRunData(float hp, Dictionary<ItemSO, int> inventory, float money, float wCredits, float tCredits)
+    {
+        PersistedHealth = hp;
+        PersistedInventory = new Dictionary<ItemSO, int>(inventory);
+        PersistedMoney = money;
+        PersistedWaveCredits = wCredits;
+        PersistedTrickleCredits = tCredits;
+        Debug.Log("[GameManager] Run Saved.");
+    }
+
+    private void ClearPersistentData()
+    {
+        PersistedHealth = -1;
+        PersistedInventory.Clear();
+        PersistedWaveCredits = 0;
+        PersistedTrickleCredits = 0;
+        KillCount = 0;
+        CurrentRotation = 0;
     }
 
     // --- Scene Management ---
 
-    public void LoadNextLevel(string sceneName)
+    public void LoadNextLevelInSequence()
     {
-        StartCoroutine(LoadSceneRoutine(sceneName, true));
+        string currentScene = SceneManager.GetActiveScene().name;
+        int currentIndex = levelOrder.IndexOf(currentScene);
+
+        // If current level is not in the list (e.g. Hub), start from the beginning
+        if (currentIndex == -1)
+        {
+            if (levelOrder.Count > 0)
+            {
+                StartCoroutine(LoadSceneRoutine(levelOrder[0], true));
+            }
+            else
+            {
+                Debug.LogError("[GameManager] Level Order list is empty!");
+            }
+            return;
+        }
+
+        // Check if there is a next level
+        if (currentIndex + 1 < levelOrder.Count)
+        {
+            string nextLevel = levelOrder[currentIndex + 1];
+            StartCoroutine(LoadSceneRoutine(nextLevel, true));
+        }
+        // If no next level, we Win
+        else
+        {
+            Debug.Log("[GameManager] End of Sequence reached. Win State.");
+            SetState(GameState.Paused);
+        }
     }
 
-    public void GoToHub()
+    public void LoadSpecificLevel(string sceneName)
     {
-        StartCoroutine(LoadSceneRoutine(hubSceneName, false));
-    }
-
-    public void RestartGame()
-    {
-        // Reset difficulty if it exists
-        if (DifficultyManager.Instance != null)
-            DifficultyManager.Instance.ResetDifficulty();
-
-        // Restart without incrementing rotation
-        StartCoroutine(LoadSceneRoutine(SceneManager.GetActiveScene().name, false));
-    }
-
-    public void ReturnToMainMenu()
-    {
-        StartCoroutine(LoadSceneRoutine(mainMenuSceneName, false));
+        StartCoroutine(LoadSceneRoutine(sceneName, false)); // False usually for Hub/Menus
     }
 
     private IEnumerator LoadSceneRoutine(string sceneName, bool shouldIncrementRotation)
     {
-        // Reset time settings immediately
         Time.timeScale = 1f;
         Time.fixedDeltaTime = _defaultFixedDeltaTime;
 
-        // Stop any active hit-stop effect
-        if (_hitStopCoroutine != null)
-        {
-            StopCoroutine(_hitStopCoroutine);
-            _hitStopCoroutine = null;
-        }
+        if (EnemyPooler.Instance != null)
+            EnemyPooler.Instance.ClearPool();
 
         yield return SceneManager.LoadSceneAsync(sceneName);
 
-        // Set appropriate state based on scene
-        if (sceneName == hubSceneName)
-        {
-            SetState(GameState.Hub);
-        }
-        else if (sceneName == mainMenuSceneName)
-        {
-            SetState(GameState.MainMenu);
-        }
+        if (sceneName == hubSceneName) SetState(GameState.Hub);
+        else if (sceneName == mainMenuSceneName) SetState(GameState.MainMenu);
         else
         {
-            StartRun();
-
-            // Only increment rotation when progressing to next level
-            if (shouldIncrementRotation)
-            {
-                IncrementRotation();
-            }
+            SetState(GameState.Playing);
+            if (shouldIncrementRotation) CurrentRotation++;
         }
     }
 
@@ -137,74 +165,79 @@ public class GameManager : MonoBehaviour
 
     public void StartRun()
     {
-        KillCount = 0;
-        OnKillCountChanged?.Invoke(KillCount);
-        CurrentRotation = 0;
-
-        // Ensure no lingering hit-stop effects
-        if (_hitStopCoroutine != null)
-        {
-            StopCoroutine(_hitStopCoroutine);
-            _hitStopCoroutine = null;
-        }
+        ClearPersistentData();
 
         if (DifficultyManager.Instance != null)
             DifficultyManager.Instance.ResetDifficulty();
 
         SetState(GameState.Playing);
+        OnKillCountChanged?.Invoke(KillCount);
     }
 
     public void SetState(GameState newState)
     {
         CurrentState = newState;
-
-        // Stop any active hit-stop and reset to default timing
-        if (_hitStopCoroutine != null)
-        {
-            StopCoroutine(_hitStopCoroutine);
-            _hitStopCoroutine = null;
-        }
-
-        // Always reset to default first
         Time.fixedDeltaTime = _defaultFixedDeltaTime;
 
         switch (newState)
         {
-            case GameState.MainMenu:
-                Time.timeScale = 1f;
-                SetCursorState(true);
-                break;
-
             case GameState.Playing:
-                Time.timeScale = 1f;
-                SetCursorState(false);
-                break;
-
             case GameState.Hub:
                 Time.timeScale = 1f;
                 SetCursorState(false);
                 break;
-
             case GameState.Paused:
                 Time.timeScale = 0f;
                 SetCursorState(true);
                 break;
-
             case GameState.GameOver:
                 Time.timeScale = 0.5f;
-                // Scale physics with timeScale for smooth slow-mo death
                 Time.fixedDeltaTime = _defaultFixedDeltaTime * 0.5f;
                 SetCursorState(true);
                 break;
+            case GameState.MainMenu:
+                Time.timeScale = 1f;
+                SetCursorState(true);
+                break;
         }
-
         OnStateChanged?.Invoke(newState);
     }
 
-    public void SetCursorState(bool visible)
+    public void TriggerHitStop(float duration, float targetScale)
     {
-        Cursor.visible = visible;
-        Cursor.lockState = visible ? CursorLockMode.None : CursorLockMode.Locked;
+        if (CurrentState != GameState.Playing) return;
+        if (_hitStopCoroutine != null) StopCoroutine(_hitStopCoroutine);
+        _hitStopCoroutine = StartCoroutine(DoHitStop(duration, targetScale));
+    }
+
+    private IEnumerator DoHitStop(float duration, float targetScale)
+    {
+        Time.timeScale = Mathf.Max(0.001f, targetScale);
+        Time.fixedDeltaTime = _defaultFixedDeltaTime * Time.timeScale;
+        yield return new WaitForSecondsRealtime(duration);
+
+        if (CurrentState == GameState.Playing)
+        {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = _defaultFixedDeltaTime;
+        }
+    }
+
+    private void HandleEnemyDeath(EnemyData data)
+    {
+        if (CurrentState == GameState.GameOver) return;
+        KillCount++;
+        OnKillCountChanged?.Invoke(KillCount);
+    }
+
+    public int GetTargetGoalForCurrentLevel()
+    {
+        if (CurrentRotation < levelGoals.Count)
+        {
+            return levelGoals[CurrentRotation];
+        }
+        // Fallback scaling if we run out of defined goals
+        return levelGoals[levelGoals.Count - 1] + (CurrentRotation * 100);
     }
 
     public void TogglePause()
@@ -215,65 +248,18 @@ public class GameManager : MonoBehaviour
             SetState(GameState.Playing);
     }
 
-    public void TriggerGameOver()
+    public void RestartGame()
     {
-        if (CurrentState != GameState.GameOver)
-        {
-            SetState(GameState.GameOver);
-        }
+        ClearPersistentData();
+        StartCoroutine(LoadSceneRoutine(SceneManager.GetActiveScene().name, false));
     }
 
-    public void IncrementRotation()
+    public void ReturnToMainMenu()
     {
-        CurrentRotation++;
-        Debug.Log("Rotation completed: " + CurrentRotation);
+        StartCoroutine(LoadSceneRoutine(mainMenuSceneName, false));
     }
 
-    public void QuitGame()
-    {
-        Application.Quit();
-    }
-
-    // --- Hit Stop ---
-
-    public void TriggerHitStop(float duration, float targetScale)
-    {
-        if (CurrentState != GameState.Playing) return;
-
-        if (_hitStopCoroutine != null)
-        {
-            StopCoroutine(_hitStopCoroutine);
-        }
-
-        _hitStopCoroutine = StartCoroutine(DoHitStop(duration, targetScale));
-    }
-
-    private IEnumerator DoHitStop(float duration, float targetScale)
-    {
-        // Safety: Ensure we never set timescale/fixedDeltaTime to absolute 0
-        // or a negative value, which breaks physics.
-        targetScale = Mathf.Max(0.001f, targetScale);
-
-        Time.timeScale = targetScale;
-        Time.fixedDeltaTime = _defaultFixedDeltaTime * targetScale;
-
-        yield return new WaitForSecondsRealtime(duration);
-
-        // Only reset if still in Playing state
-        if (CurrentState == GameState.Playing)
-        {
-            Time.timeScale = 1f;
-            Time.fixedDeltaTime = _defaultFixedDeltaTime;
-        }
-
-        _hitStopCoroutine = null;
-    }
-
-    private void HandleEnemyDeath(EnemyData data)
-    {
-        if (CurrentState == GameState.GameOver) return;
-
-        KillCount++;
-        OnKillCountChanged?.Invoke(KillCount);
-    }
+    public void TriggerGameOver() => SetState(GameState.GameOver);
+    public void SetCursorState(bool visible) { Cursor.visible = visible; Cursor.lockState = visible ? CursorLockMode.None : CursorLockMode.Locked; }
+    public void QuitGame() => Application.Quit();
 }

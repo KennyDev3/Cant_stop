@@ -13,6 +13,28 @@ public class GarbageBundle : MonoBehaviour, IInteractable
     private bool _isConsumed = false;
     private Vector3 _originalScale;
 
+    [Header("Impact Thresholds")]
+    [Tooltip("Minimum velocity to play any sound at all.")]
+    [SerializeField] private float minImpactVelocity = 1.5f;
+    [Tooltip("Velocity required to trigger the Medium sound.")]
+    [SerializeField] private float mediumThreshold = 6f;
+    [Tooltip("Velocity required to trigger the Strong sound.")]
+    [SerializeField] private float strongThreshold = 12f;
+
+    [Header("Impact Sounds")]
+    [SerializeField] private SoundDef soundImpactSmall;
+    [SerializeField] private SoundDef soundImpactMedium;
+    [SerializeField] private SoundDef soundImpactStrong;
+
+    private float _lastImpactSoundTime;
+    private const float IMPACT_COOLDOWN = 0.1f;
+
+    [Header("Impact Particles")]
+    [SerializeField] private ParticleSystem impactPuffPrefab;
+    [SerializeField] private float minParticleVelocity = 2f;
+
+
+
     [SerializeField] private Outline targetOutline;
 
     [Header("Heavy Physics Settings")]
@@ -73,13 +95,10 @@ public class GarbageBundle : MonoBehaviour, IInteractable
     {
         if (_rb == null || _rb.isKinematic) return;
 
-        // 1. Custom Gravity
         _rb.AddForce(Physics.gravity * gravityMultiplier, ForceMode.Acceleration);
 
-        // 2. Dynamic Damping Management
         if (_hasHitGround)
         {
-            // Note: linearVelocity is the Unity 6 API. Use 'velocity' if on older versions.
             float currentSpeed = _rb.linearVelocity.magnitude;
 
             if (currentSpeed > _slideThreshold)
@@ -108,6 +127,9 @@ public class GarbageBundle : MonoBehaviour, IInteractable
             _hasHitGround = true;
             _rb.angularDamping = 2.0f; // Dampen spin slightly on impact
         }
+
+        HandleImpactSound(collision);
+        HandleImpactParticles(collision);
     }
 
     public void InitializeBundle(List<GarbageData> data, Vector3 direction, float force, float fullnessRatio)
@@ -156,6 +178,8 @@ public class GarbageBundle : MonoBehaviour, IInteractable
         return total;
     }
 
+
+
     // --- RESTORED METHOD ---
     public void ShrinkToPercentage(float percentage)
     {
@@ -175,6 +199,58 @@ public class GarbageBundle : MonoBehaviour, IInteractable
                 Destroy(gameObject);
             }
         }
+    }
+
+    // ---------------------------------------------
+    // Sound & Particle Logic
+    // ---------------------------------------------
+
+    private void HandleImpactSound(Collision collision)
+    {
+        if (Time.time < _lastImpactSoundTime + IMPACT_COOLDOWN) return;
+
+        float impactVelocity = collision.relativeVelocity.magnitude;
+
+        // Ignore tiny vibrations or slow rolls
+        if (impactVelocity < minImpactVelocity) return;
+
+        _lastImpactSoundTime = Time.time;
+
+        // Determine which tier to play
+        if (impactVelocity >= strongThreshold)
+        {
+            SoundManager.Instance.Play(soundImpactStrong, transform.position);
+        }
+        else if (impactVelocity >= mediumThreshold)
+        {
+            SoundManager.Instance.Play(soundImpactMedium, transform.position);
+        }
+        else
+        {
+            // For small impacts,  pass a slight pitch override 
+            float pitchMod = Mathf.Lerp(0.8f, 1.2f, impactVelocity / mediumThreshold);
+            SoundManager.Instance.Play(soundImpactSmall, transform.position, pitchMod);
+        }
+    }
+
+    private void HandleImpactParticles(Collision collision)
+    {
+        float impactVelocity = collision.relativeVelocity.magnitude;
+
+        // Ignore tiny hits
+        if (impactVelocity < minImpactVelocity) return;
+
+        
+        float targetSize = (impactVelocity >= mediumThreshold) ? 0.25f : 0.15f;
+        ContactPoint contact = collision.GetContact(0);
+        Vector3 spawnPos = contact.point + (contact.normal * 0.1f);
+
+        ParticleSystem puff = Instantiate(impactPuffPrefab, spawnPos, Quaternion.LookRotation(contact.normal));
+
+        puff.transform.localScale = new Vector3(targetSize, targetSize, targetSize);
+
+        
+        Destroy(puff.gameObject, 2.0f);
     }
 
     public string GetInteractionPrompt()

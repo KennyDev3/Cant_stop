@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -8,6 +9,9 @@ public class EnemyDirector : MonoBehaviour
 {
     public static EnemyDirector Instance { get; private set; }
 
+    public float GetWaveCredits() => waveCredits;
+    public float GetTrickleCredits() => trickleCredits;
+
     [Header("Debug")]
     [SerializeField] private bool debugMode = false;
 
@@ -15,26 +19,34 @@ public class EnemyDirector : MonoBehaviour
     [SerializeField] private float baseCreditsPerSecond = 10f;
     [SerializeField] private float startCredits = 10f;
     [SerializeField] private float refundPercentage = 0.3f;
-    [SerializeField] private float spawnCheckInterval = 4.5f;
 
     [Header("Wave Scaling")]
-    [SerializeField] private float initialMaxExpenditure = 200f; 
-    [SerializeField] private float expenditureGrowthPerMinute = 100f; 
+    [SerializeField] private float initialMaxExpenditure = 200f;
+    [SerializeField] private float expenditureGrowthPerMinute = 100f;
     [SerializeField] private float absoluteMaxExpenditure = 10000f;
 
     [Header("Dynamic Wave Timing")]
-    [SerializeField] private float initialWaveInterval = 60f;      
-    [SerializeField] private float acceleratedWaveInterval = 30f;  
-    [SerializeField] private float waveAccelerationThreshold = 300f; 
+    [SerializeField] private float initialWaveInterval = 60f;
+    [SerializeField] private float acceleratedWaveInterval = 30f;
+    [SerializeField] private float waveAccelerationThreshold = 300f;
+
+    [Header("Wave Spawn Pattern")]
+    [SerializeField] private float waveDuration = 30f;
+    [SerializeField] private float minSpawnDelay = 0.3f;
+    [SerializeField] private float maxSpawnDelay = 2.5f;
+    [SerializeField] private AnimationCurve spawnIntensityCurve = AnimationCurve.EaseInOut(0, 0.5f, 1, 1f);
+    [SerializeField] private int minBatchSize = 1;
+    [SerializeField] private int maxBatchSize = 5;
+    [Tooltip("How much the batch size scales with wave progress (0-1). Higher = bigger batches later")]
+    [SerializeField] private float batchSizeScaling = 0.6f;
 
     [Header("Economy - Trickle (Background)")]
     [SerializeField] private float trickleCreditsPerSecond = 2f;
     [SerializeField] private float tricklePauseAfterWave = 30f;
     [SerializeField] private float maxTricklePool = 20f;
-    [SerializeField] private float trickleIntervalMin = 3f; 
+    [SerializeField] private float trickleIntervalMin = 3f;
     [SerializeField] private float trickleIntervalMax = 7f;
     [SerializeField] private int maxTrickleGroupSize = 3;
-
 
     [Tooltip("Enemies with a selectionWeight higher than this are considered 'Trickle' enemies")]
     [SerializeField] private float trickleWeightThreshold = 0.8f;
@@ -67,8 +79,9 @@ public class EnemyDirector : MonoBehaviour
     [SerializeField] private TextMeshProUGUI hpModifierText;
     [SerializeField] private TextMeshProUGUI damageModifierText;
     [SerializeField] private TextMeshProUGUI creditModifierText;
-    [SerializeField] private TextMeshProUGUI trickleCreditsText; 
-    [SerializeField] private TextMeshProUGUI livingEnemiesText;  
+    [SerializeField] private TextMeshProUGUI trickleCreditsText;
+    [SerializeField] private TextMeshProUGUI livingEnemiesText;
+    [SerializeField] private TextMeshProUGUI waveStatusText;
 
     // Internal State
     private float waveCredits;
@@ -78,21 +91,40 @@ public class EnemyDirector : MonoBehaviour
 
     private int currentLivingEnemies;
     private float waveTimer;
+    private bool isWaveActive;
+    private Coroutine activeWaveCoroutine;
 
     private void Awake()
     {
         Instance = this;
-        waveCredits = startCredits;
-        trickleCredits = 0f;
+
+        // LOAD data from GameManager if it exists
+        if (GameManager.Instance != null)
+        {
+            waveCredits = GameManager.Instance.PersistedWaveCredits;
+            trickleCredits = GameManager.Instance.PersistedTrickleCredits;
+        }
+        else
+        {
+            waveCredits = startCredits;
+            trickleCredits = 0f;
+        }
+
+        // Always reset living enemies to 0 because it's a new scene
+        currentLivingEnemies = 0;
+
+        if (spawnIntensityCurve == null || spawnIntensityCurve.keys.Length == 0)
+        {
+            spawnIntensityCurve = AnimationCurve.EaseInOut(0, 0.5f, 1, 1f);
+        }
     }
 
     private void Start()
     {
-        if (playerTransform == null)
-        {
-            GameObject p = GameObject.FindGameObjectWithTag("Player");
-            if (p != null) playerTransform = p.transform;
-        }
+        GameObject p = GameObject.FindGameObjectWithTag("Player");
+        if (p != null) playerTransform = p.transform;
+
+        waveTimer = 0f;
     }
 
     private void OnEnable() => EnemyHealth.OnEnemyDeath += HandleEnemyDeath;
@@ -105,16 +137,20 @@ public class EnemyDirector : MonoBehaviour
         UpdateUI();
         HandleEconomyAndTimers();
 
-        float currentRunTime = DifficultyManager.Instance.TotalRunTime;
-        float currentSpawnInterval = (currentRunTime >= waveAccelerationThreshold)
-            ? acceleratedWaveInterval
-            : initialWaveInterval;
-
-        waveTimer += Time.deltaTime;
-        if (waveTimer >= currentSpawnInterval)
+        // Only increment wave timer if not actively spawning a wave
+        if (!isWaveActive)
         {
-            AttemptSpawnWave();
-            waveTimer = 0f;
+            float currentRunTime = DifficultyManager.Instance.TotalRunTime;
+            float currentSpawnInterval = (currentRunTime >= waveAccelerationThreshold)
+                ? acceleratedWaveInterval
+                : initialWaveInterval;
+
+            waveTimer += Time.deltaTime;
+            if (waveTimer >= currentSpawnInterval)
+            {
+                TriggerWave();
+                waveTimer = 0f;
+            }
         }
     }
 
@@ -168,8 +204,6 @@ public class EnemyDirector : MonoBehaviour
 
             if (spawnPos != Vector3.zero && ExecuteSpawn(selected, spawnPos))
             {
-
-
                 trickleCredits -= selected.spawnCost;
                 spawnedThisBeat++;
             }
@@ -179,58 +213,102 @@ public class EnemyDirector : MonoBehaviour
             Debug.Log($"Trickle heartbeat spawned a group of {spawnedThisBeat} enemies.");
     }
 
-    private void AttemptSpawnWave()
+    private void TriggerWave()
     {
+        if (isWaveActive) return;
         if (currentLivingEnemies >= maxActiveEnemies) return;
         if (enemyList == null || enemyList.Count == 0) return;
+
+        if (activeWaveCoroutine != null)
+            StopCoroutine(activeWaveCoroutine);
+
+        activeWaveCoroutine = StartCoroutine(ExecuteWaveOverTime());
+    }
+
+    private IEnumerator ExecuteWaveOverTime()
+    {
+        isWaveActive = true;
+        isTricklePaused = true;
+        tricklePauseTimer = tricklePauseAfterWave;
+        trickleCredits = 0;
 
         float runTimeMinutes = (DifficultyManager.Instance != null) ? DifficultyManager.Instance.TotalRunTime / 60f : 0;
         float currentSpendingLimit = Mathf.Min(initialMaxExpenditure + (expenditureGrowthPerMinute * runTimeMinutes), absoluteMaxExpenditure);
 
         float amountSpentThisWave = 0;
-        bool spawnedAnything = false;
-        int attempts = 0;
+        float waveElapsed = 0f;
+        int totalSpawned = 0;
 
-        while (waveCredits > 0 &&
-               amountSpentThisWave < currentSpendingLimit &&
-               currentLivingEnemies < maxActiveEnemies &&
-               attempts < 20)
+        if (debugMode)
+            Debug.Log($"=== WAVE START === Budget: {currentSpendingLimit:F0}, Available Credits: {waveCredits:F0}");
+
+        while (waveElapsed < waveDuration &&
+               waveCredits > 0 &&
+               amountSpentThisWave < currentSpendingLimit)
         {
-            attempts++;
+            float waveProgress = waveElapsed / waveDuration;
 
-            // Caching Enemy List
-            _affordableCache.Clear();
-            for (int i = 0; i < enemyList.Count; i++)
+            // Determine batch size based on wave progress
+            float scaledBatchMax = Mathf.Lerp(minBatchSize, maxBatchSize, waveProgress * batchSizeScaling);
+            int batchSize = Mathf.Max(minBatchSize, Random.Range(minBatchSize, Mathf.CeilToInt(scaledBatchMax) + 1));
+
+            // Spawn a batch
+            int spawnedInBatch = 0;
+            for (int i = 0; i < batchSize; i++)
             {
-                EnemyConfig config = enemyList[i];
-                if (config.canSpawn && config.enemyData != null && config.enemyData.spawnCost <= waveCredits)
+                if (currentLivingEnemies >= maxActiveEnemies) break;
+                if (waveCredits <= 0) break;
+                if (amountSpentThisWave >= currentSpendingLimit) break;
+
+                // Get affordable enemies
+                _affordableCache.Clear();
+                for (int j = 0; j < enemyList.Count; j++)
                 {
-                    _affordableCache.Add(config.enemyData);
+                    EnemyConfig config = enemyList[j];
+                    if (config.canSpawn && config.enemyData != null && config.enemyData.spawnCost <= waveCredits)
+                    {
+                        _affordableCache.Add(config.enemyData);
+                    }
+                }
+
+                if (_affordableCache.Count == 0) break;
+
+                EnemyData selectedEnemy = GetWeightedRandomEnemy(_affordableCache);
+
+                // Check if we can afford this without exceeding limit (with small buffer)
+                if (amountSpentThisWave + selectedEnemy.spawnCost > currentSpendingLimit + (selectedEnemy.spawnCost * 0.5f))
+                    break;
+
+                Vector3 spawnPos = GetDonutSpawnPosition();
+                if (spawnPos != Vector3.zero && ExecuteSpawn(selectedEnemy, spawnPos))
+                {
+                    waveCredits -= selectedEnemy.spawnCost;
+                    amountSpentThisWave += selectedEnemy.spawnCost;
+                    spawnedInBatch++;
+                    totalSpawned++;
                 }
             }
 
-            if (_affordableCache.Count == 0) break;
+            if (debugMode && spawnedInBatch > 0)
+                Debug.Log($"Wave batch ({waveProgress * 100:F0}%): Spawned {spawnedInBatch} enemies | Total: {totalSpawned} | Spent: {amountSpentThisWave:F0}/{currentSpendingLimit:F0}");
 
-            EnemyData selectedEnemy = GetWeightedRandomEnemy(_affordableCache);
+            // Calculate delay until next batch based on intensity curve
+            float intensityValue = spawnIntensityCurve.Evaluate(waveProgress);
+            float delayMultiplier = 1f - intensityValue; // Higher intensity = lower delay
+            float nextDelay = Mathf.Lerp(minSpawnDelay, maxSpawnDelay, delayMultiplier);
 
-            if (amountSpentThisWave + selectedEnemy.spawnCost > currentSpendingLimit + (selectedEnemy.spawnCost * 0.5f))
-                break;
+            // Add some randomness to prevent predictability
+            nextDelay *= Random.Range(0.8f, 1.2f);
 
-            Vector3 spawnPos = GetDonutSpawnPosition();
-            if (spawnPos != Vector3.zero && ExecuteSpawn(selectedEnemy, spawnPos))
-            {
-                waveCredits -= selectedEnemy.spawnCost;
-                amountSpentThisWave += selectedEnemy.spawnCost;
-                spawnedAnything = true;
-            }
+            yield return new WaitForSeconds(nextDelay);
+            waveElapsed += nextDelay;
         }
 
-        if (spawnedAnything)
-        {
-            isTricklePaused = true;
-            tricklePauseTimer = tricklePauseAfterWave;
-            trickleCredits = 0;
-        }
+        if (debugMode)
+            Debug.Log($"=== WAVE END === Total Spawned: {totalSpawned}, Spent: {amountSpentThisWave:F0}, Remaining Credits: {waveCredits:F0}");
+
+        isWaveActive = false;
+        activeWaveCoroutine = null;
     }
 
     private bool ExecuteSpawn(EnemyData data, Vector3 pos)
@@ -318,6 +396,19 @@ public class EnemyDirector : MonoBehaviour
 
         if (livingEnemiesText != null)
             livingEnemiesText.text = $"Enemies: {currentLivingEnemies}/{maxActiveEnemies}";
+
+        if (waveStatusText != null)
+        {
+            if (isWaveActive)
+                waveStatusText.text = "WAVE ACTIVE";
+            else
+            {
+                float currentRunTime = DifficultyManager.Instance != null ? DifficultyManager.Instance.TotalRunTime : 0;
+                float currentInterval = (currentRunTime >= waveAccelerationThreshold) ? acceleratedWaveInterval : initialWaveInterval;
+                float timeToNextWave = currentInterval - waveTimer;
+                waveStatusText.text = $"Next Wave: {timeToNextWave:F0}s";
+            }
+        }
 
         if (DifficultyManager.Instance == null) return;
 

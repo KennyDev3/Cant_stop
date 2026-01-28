@@ -91,4 +91,23 @@ public class EnemyPooler : MonoBehaviour
 
         poolDictionary[data].Enqueue(enemy);
     }
+
+    public void ClearPool()
+    {
+        if (debugMode) Debug.Log("<color=red>[Pooler]</color> Clearing all pooled enemies for scene transition.");
+
+        foreach (var queue in poolDictionary.Values)
+        {
+            while (queue.Count > 0)
+            {
+                GameObject obj = queue.Dequeue();
+                if (obj != null)
+                {
+                    Destroy(obj);
+                }
+            }
+        }
+
+        poolDictionary.Clear();
+    }
 }
