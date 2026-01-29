@@ -2,7 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System;
 
-public class InventoryManager : MonoBehaviour
+public class InventoryManager : MonoBehaviour, IRunStateContributor
 {
     public event Action OnItemPickedUp;
 
@@ -14,6 +14,38 @@ public class InventoryManager : MonoBehaviour
     }
 
     public Dictionary<ItemSO, int> GetInventory() => _inventory;
+
+    public void ContributeToRunState(RunState state)
+    {
+        state.Inventory.Items.Clear();
+        foreach (var kvp in _inventory)
+            state.Inventory.Items[kvp.Key] = kvp.Value;
+    }
+
+    public void ApplyRunState(RunState state)
+    {
+        if (state.Inventory.Items.Count == 0)
+        {
+            Debug.Log($"[RunState] InventoryManager skipped (0 items in state)");
+            return;
+        }
+
+        _inventory.Clear();
+        foreach (var kvp in state.Inventory.Items)
+            _inventory[kvp.Key] = kvp.Value;
+
+        RecalculateAllStats();
+        UpdateDebugList();
+
+        UIManager ui = FindFirstObjectByType<UIManager>();
+        if (ui != null)
+        {
+            foreach (var entry in _inventory)
+                ui.UpdateItemDisplay(entry.Key, entry.Value);
+        }
+
+        Debug.Log($"[RunState] InventoryManager applied: {_inventory.Count} item types");
+    }
 
     [Header("Debugging")]
     [SerializeField] private List<DebugItemEntry> startingItems;
@@ -29,34 +61,27 @@ public class InventoryManager : MonoBehaviour
     [SerializeField] private StatController turretStats;
     private UIManager _uiManager;
 
+    private void OnEnable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
+    }
+
+    private void OnDisable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.UnregisterRunStateContributor(this);
+    }
+
     private void Start()
     {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
+
         _uiManager = FindFirstObjectByType<UIManager>();
 
         if (_uiManager == null)
             Debug.LogError("<color=red>[INVENTORY CRITICAL]</color> UIManager not found in Start!");
-
-        // --- PERSISTENCE LOGIC ---
-        if (GameManager.Instance != null && GameManager.Instance.PersistedInventory.Count > 0)
-        {
-            // LOG: Use the Instance ID to see WHICH GameManager we are talking to
-            Debug.Log($"<color=cyan>[INVENTORY LOAD]</color> Reading from GameManager (ID: {GameManager.Instance.GetInstanceID()}). Found {GameManager.Instance.PersistedInventory.Count} items.");
-
-            _inventory = new Dictionary<ItemSO, int>(GameManager.Instance.PersistedInventory);
-
-            if (_uiManager != null)
-            {
-                foreach (var entry in _inventory)
-                    _uiManager.UpdateItemDisplay(entry.Key, entry.Value);
-            }
-        }
-        else
-        {
-            // LOG: Helpful warning
-            string gmStatus = GameManager.Instance == null ? "NULL" : "Empty";
-            Debug.LogWarning($"<color=yellow>[INVENTORY LOAD FAILED]</color> GameManager is {gmStatus}. Starting fresh.");
-        }
-        // -------------------------
 
         if (startingItems != null && startingItems.Count > 0)
         {
@@ -64,7 +89,13 @@ public class InventoryManager : MonoBehaviour
         }
 
         RecalculateAllStats();
-        UpdateDebugList(); // Update the visual list on Start
+        UpdateDebugList();
+
+        if (_uiManager != null)
+        {
+            foreach (var entry in _inventory)
+                _uiManager.UpdateItemDisplay(entry.Key, entry.Value);
+        }
     }
 
     private void ProcessStartingItems()

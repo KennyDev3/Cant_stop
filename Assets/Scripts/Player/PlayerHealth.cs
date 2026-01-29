@@ -9,7 +9,7 @@ using Unity.Cinemachine;
 
 
 
-public class PlayerHealth : MonoBehaviour
+public class PlayerHealth : MonoBehaviour, IRunStateContributor
 {
     public float maxHealth = 1000f;
     private float currentHealth;
@@ -48,20 +48,43 @@ public class PlayerHealth : MonoBehaviour
 
     public float GetCurrentHealth() => currentHealth;
 
+    public void ContributeToRunState(RunState state)
+    {
+        state.Player.Health = currentHealth;
+        state.Player.MaxHealth = maxHealth;
+    }
 
+    public void ApplyRunState(RunState state)
+    {
+        if (state.Player.Health > 0f)
+        {
+            currentHealth = state.Player.Health;
+            maxHealth = state.Player.MaxHealth;
+            Debug.Log($"[RunState] PlayerHealth applied: currentHealth={currentHealth} maxHealth={maxHealth}");
+        }
+        else
+            Debug.Log($"[RunState] PlayerHealth skipped (Health <= 0: {state.Player.Health})");
+    }
+
+    private void OnEnable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
+    }
+
+    private void OnDisable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.UnregisterRunStateContributor(this);
+    }
 
     void Start()
     {
-        // --- PERSISTENCE LOGIC ---
-        if (GameManager.Instance != null && GameManager.Instance.PersistedHealth > 0)
-        {
-            currentHealth = GameManager.Instance.PersistedHealth;
-        }
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
 
-        else
-        {
+        if (currentHealth <= 0f)
             currentHealth = maxHealth;
-        }
 
         thirdPersonController = GetComponent<ThirdPersonController>();
         characterController = GetComponent<CharacterController>();

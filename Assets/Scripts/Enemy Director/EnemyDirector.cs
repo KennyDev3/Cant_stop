@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.AI;
 using TMPro;
 
-public class EnemyDirector : MonoBehaviour
+public class EnemyDirector : MonoBehaviour, IRunStateContributor
 {
     public static EnemyDirector Instance { get; private set; }
 
@@ -98,19 +98,8 @@ public class EnemyDirector : MonoBehaviour
     {
         Instance = this;
 
-        // LOAD data from GameManager if it exists
-        if (GameManager.Instance != null)
-        {
-            waveCredits = GameManager.Instance.PersistedWaveCredits;
-            trickleCredits = GameManager.Instance.PersistedTrickleCredits;
-        }
-        else
-        {
-            waveCredits = startCredits;
-            trickleCredits = 0f;
-        }
-
-        // Always reset living enemies to 0 because it's a new scene
+        waveCredits = startCredits;
+        trickleCredits = 0f;
         currentLivingEnemies = 0;
 
         if (spawnIntensityCurve == null || spawnIntensityCurve.keys.Length == 0)
@@ -119,16 +108,43 @@ public class EnemyDirector : MonoBehaviour
         }
     }
 
+    private void OnEnable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
+        EnemyHealth.OnEnemyDeath += HandleEnemyDeath;
+    }
+
+    private void OnDisable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.UnregisterRunStateContributor(this);
+        EnemyHealth.OnEnemyDeath -= HandleEnemyDeath;
+    }
+
     private void Start()
     {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
+
         GameObject p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) playerTransform = p.transform;
 
         waveTimer = 0f;
     }
 
-    private void OnEnable() => EnemyHealth.OnEnemyDeath += HandleEnemyDeath;
-    private void OnDisable() => EnemyHealth.OnEnemyDeath -= HandleEnemyDeath;
+    public void ContributeToRunState(RunState state)
+    {
+        state.Economy.WaveCredits = waveCredits;
+        state.Economy.TrickleCredits = trickleCredits;
+    }
+
+    public void ApplyRunState(RunState state)
+    {
+        waveCredits = state.Economy.WaveCredits;
+        trickleCredits = state.Economy.TrickleCredits;
+        Debug.Log($"[RunState] EnemyDirector applied: waveCredits={waveCredits} trickleCredits={trickleCredits}");
+    }
 
     private void Update()
     {

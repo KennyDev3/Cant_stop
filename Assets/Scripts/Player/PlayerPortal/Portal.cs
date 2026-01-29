@@ -1,6 +1,6 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 public class Portal : MonoBehaviour
 {
@@ -11,7 +11,61 @@ public class Portal : MonoBehaviour
     [SerializeField] private bool returnToHub = false;
     [SerializeField] private bool increaseDifficulty = true;
 
+    [Header("Portal placement")]
+    [Tooltip("World Y position when the portal spawns. Text animation uses the label's current transform as baseline.")]
+    [SerializeField] private float spawnPositionY = 3.45f;
+
+    [Header("Label (TextMeshPro 3D)")]
+    [SerializeField] private TextMeshPro portalLabel;
+    [Tooltip("Label's local position relative to portal. Set once to match the text child in the prefab (e.g. Y = -0.271).")]
+    [SerializeField] private Vector3 labelLocalPosition = new Vector3(0f, -0.271f, 0f);
+    [Tooltip("Label's local scale in the prefab. Ensures relationship is consistent regardless of spawn order.")]
+    [SerializeField] private Vector3 labelLocalScale = Vector3.one;
+    [Tooltip("Label's local rotation (Euler) in the prefab.")]
+    [SerializeField] private Vector3 labelLocalRotationEuler = Vector3.zero;
+
     private bool _triggered = false;
+
+    /// <summary>Call from the Portal prefab with the label child set correctly; copies its local transform into the serialized fields so the relationship stays consistent at runtime.</summary>
+    [ContextMenu("Copy label transform from hierarchy")]
+    private void CopyLabelTransformFromHierarchy()
+    {
+        if (portalLabel == null) return;
+        Transform tr = portalLabel.transform;
+        labelLocalPosition = tr.localPosition;
+        labelLocalScale = tr.localScale;
+        labelLocalRotationEuler = tr.localEulerAngles;
+#if UNITY_EDITOR
+        UnityEditor.EditorUtility.SetDirty(this);
+#endif
+    }
+
+    private void Start()
+    {
+        // Spawn at desired height (prefab scale 2.5,2.5,2.5 is unchanged)
+        Vector3 p = transform.position;
+        transform.position = new Vector3(p.x, spawnPositionY, p.z);
+    }
+
+    private void Update()
+    {
+        if (portalLabel == null) return;
+
+        Transform t = portalLabel.transform;
+        float time = Time.time;
+
+        // Always apply prefab relationship (serialized) so it's consistent regardless of spawn/order
+        t.localPosition = labelLocalPosition;
+
+        // Scale: prefab relationship + pulse animation
+        float scaleMul = 1f + 0.06f * Mathf.Sin(time * 2.2f);
+        t.localScale = labelLocalScale * scaleMul;
+
+        // Rotation: prefab relationship + wobble (portal spawns at 0,0,0 so no flip needed)
+        Quaternion prefabLocalRot = Quaternion.Euler(labelLocalRotationEuler);
+        float wobbleDeg = 1.5f * Mathf.Sin(time * 1.2f);
+        t.localRotation = prefabLocalRot * Quaternion.Euler(0f, wobbleDeg, 0f);
+    }
 
     private void OnTriggerEnter(Collider other)
     {
@@ -32,67 +86,28 @@ public class Portal : MonoBehaviour
 
     private void ActivatePortal(GameObject playerObj)
     {
-        Debug.Log("<color=cyan>[Portal]</color> Activating... Saving run data.");
-
-        float hp = 0;
-        Dictionary<ItemSO, int> inventory = new Dictionary<ItemSO, int>();
-        float money = 0;
-        float waveCredits = 0;
-        float trickleCredits = 0;
-
-        if (playerObj.TryGetComponent(out PlayerHealth health))
+        if (GameManager.Instance == null)
         {
-            hp = health.GetCurrentHealth();
+            Debug.LogWarning("[Portal] No GameManager found. Reloading current scene as fallback.");
+            SceneManager.LoadScene(string.IsNullOrEmpty(nextSceneNameOverride) ? SceneManager.GetActiveScene().name : nextSceneNameOverride);
+            return;
         }
 
-        if (playerObj.TryGetComponent(out InventoryManager inv))
+        Debug.Log("<color=cyan>[Portal]</color> Activating... Collecting run state.");
+
+        GameManager.Instance.CollectRunState();
+
+        if (returnToHub)
         {
-            inventory = inv.GetInventory();
-            Debug.Log($"<color=orange>[PORTAL]</color> Saving {inventory.Count} item types from Inventory.");
+            GameManager.Instance.LoadSpecificLevel(GameManager.Instance.HubSceneName);
         }
-
-        if (playerObj.TryGetComponent(out PlayerGarbageHandler garbageHandler))
+        else if (!string.IsNullOrEmpty(nextSceneNameOverride))
         {
-            money = garbageHandler.GetMoney();
-        }
-
-        if (EnemyDirector.Instance != null)
-        {
-            waveCredits = EnemyDirector.Instance.GetWaveCredits();
-            trickleCredits = EnemyDirector.Instance.GetTrickleCredits();
-        }
-
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.SaveRunData(hp, inventory, money, waveCredits, trickleCredits);
-
-            // To force difficulty jump between levels
-            if (increaseDifficulty && DifficultyManager.Instance != null)
-            {
-                // DifficultyManager.Instance.IncreaseDifficulty(); // Uncomment if you have this method
-            }
-
-            // Determine Destination
-            if (returnToHub)
-            {
-                GameManager.Instance.LoadSpecificLevel("HubScene");
-            }
-            else if (!string.IsNullOrEmpty(nextSceneNameOverride))
-            {
-                // Manual Override (e.g. Secret Exit)
-                GameManager.Instance.LoadSpecificLevel(nextSceneNameOverride);
-            }
-            else
-            {
-                // Standard Logic: Check the list in GameManager and go to next
-                GameManager.Instance.LoadNextLevelInSequence();
-            }
+            GameManager.Instance.LoadSpecificLevel(nextSceneNameOverride);
         }
         else
         {
-            // Fallback for testing (if no GameManager is present)
-            Debug.LogWarning("[Portal] No GameManager found. Reloading current scene as fallback.");
-            SceneManager.LoadScene(string.IsNullOrEmpty(nextSceneNameOverride) ? SceneManager.GetActiveScene().name : nextSceneNameOverride);
+            GameManager.Instance.LoadNextLevelInSequence();
         }
     }
 }
