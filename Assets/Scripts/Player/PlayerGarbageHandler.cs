@@ -4,7 +4,7 @@ using UnityEngine.Events;
 using StarterAssets;
 using UnityEngine.InputSystem;
 
-public class PlayerGarbageHandler : MonoBehaviour
+public class PlayerGarbageHandler : MonoBehaviour, IRunStateContributor
 {
     private StarterAssetsInputs _input;
 
@@ -72,24 +72,45 @@ public class PlayerGarbageHandler : MonoBehaviour
         else _playerController.OnPickupAnimationComplete += FinalizePickup;
     }
 
+    private void OnEnable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
+    }
+
+    private void OnDisable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.UnregisterRunStateContributor(this);
+    }
+
     private void Start()
     {
-        // --- PERSISTENCE LOGIC ---
-        if (GameManager.Instance != null && GameManager.Instance.PersistedHealth > 0)
-        {
-            // We use PersistedHealth as a check to see if a run is actually in progress
-            _money = GameManager.Instance.PersistedMoney;
-
-            // If your items increase capacity, they will be handled by RecalculateAllStats
-            // But if you bought permanent upgrades, we should save/load maxCapacity too
-            // maxCapacity = GameManager.Instance.PersistedMaxCapacity; 
-        }
-        // -------------------------
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
 
         onCapacityChanged.Invoke(_currentCapacity, maxCapacity);
         onMoneyChanged.Invoke(_money);
 
         if (enableDebugCheats && startWithFullInventory) FillInventoryDebug();
+    }
+
+    public void ContributeToRunState(RunState state)
+    {
+        state.Economy.Money = _money;
+        state.Player.MaxCapacity = maxCapacity;
+    }
+
+    public void ApplyRunState(RunState state)
+    {
+        if (state.Player.Health > 0f)
+        {
+            _money = state.Economy.Money;
+            maxCapacity = state.Player.MaxCapacity;
+            Debug.Log($"[RunState] PlayerGarbageHandler applied: money={_money} maxCapacity={maxCapacity}");
+        }
+        else
+            Debug.Log($"[RunState] PlayerGarbageHandler skipped (Health <= 0: {state.Player.Health})");
     }
 
     private void Update()

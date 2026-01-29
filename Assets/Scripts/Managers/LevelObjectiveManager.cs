@@ -105,7 +105,7 @@ public class LevelObjectiveManager : MonoBehaviour
             spawnPos.y = player.transform.position.y;
         }
 
-        Instantiate(portalPrefab, spawnPos, Quaternion.LookRotation(-player.transform.forward));
+        Instantiate(portalPrefab, spawnPos, Quaternion.identity);
     }
 
     private IEnumerator AnimatePop()

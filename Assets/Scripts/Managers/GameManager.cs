@@ -21,18 +21,18 @@ public class GameManager : MonoBehaviour
     [SerializeField] private string mainMenuSceneName = "MainMenu";
     [SerializeField] private string hubSceneName = "HubScene";
 
+    public string HubSceneName => hubSceneName;
+
     [Header("Level Sequence")]
     [Tooltip("The exact names of your scenes in order. e.g. World_1, World_2")]
     [SerializeField] private List<string> levelOrder = new List<string>();
 
-    [Header("Persistent Run Data")]
-    public float PersistedHealth = -1;
-    public Dictionary<ItemSO, int> PersistedInventory = new Dictionary<ItemSO, int>();
-    public float PersistedMoney = 0;
-    public float PersistedWaveCredits = 0;
-    public float PersistedTrickleCredits = 0;
-    public int CurrentRotation { get; private set; }
-    public int KillCount { get; private set; }
+    private RunState _currentRun = new RunState();
+
+    // Persistence variables
+   
+    public int CurrentRotation => _currentRun.Meta.CurrentRotation;
+    public int KillCount => _currentRun.Meta.KillCount;
 
     public GameState CurrentState { get; private set; }
     public event Action<GameState> OnStateChanged;
@@ -40,6 +40,34 @@ public class GameManager : MonoBehaviour
 
     private float _defaultFixedDeltaTime;
     private Coroutine _hitStopCoroutine;
+
+    private List<IRunStateContributor> _contributors = new List<IRunStateContributor>();
+
+    public void RegisterRunStateContributor(IRunStateContributor contributor)
+    {
+        if (contributor != null && !_contributors.Contains(contributor))
+            _contributors.Add(contributor);
+    }
+
+    public void UnregisterRunStateContributor(IRunStateContributor contributor)
+    {
+        _contributors.Remove(contributor);
+    }
+
+    public void CollectRunState()
+    {
+        Debug.Log($"[RunState] CollectRunState: _contributors.Count={_contributors.Count}");
+        for (int i = _contributors.Count - 1; i >= 0; i--)
+        {
+            if (_contributors[i] is UnityEngine.Object obj && obj == null)
+            {
+                _contributors.RemoveAt(i);
+                continue;
+            }
+            _contributors[i].ContributeToRunState(_currentRun);
+        }
+        Debug.Log($"[RunState] After collect: Health={_currentRun.Player.Health} Money={_currentRun.Economy.Money} InventoryCount={_currentRun.Inventory.Items.Count} WaveCredits={_currentRun.Economy.WaveCredits} TrickleCredits={_currentRun.Economy.TrickleCredits} DiffStage={_currentRun.Difficulty.Stage} TotalRunTime={_currentRun.Difficulty.TotalRunTime:F1} KillCount={_currentRun.Meta.KillCount}");
+    }
 
     [Header("Level Objectives")]
     [Tooltip("Index 0 = World 1, Index 1 = World 2, etc.")]
@@ -71,7 +99,7 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            if (PersistedHealth <= 0)
+            if (_currentRun.Player.Health <= 0)
             {
                 StartRun();
             }
@@ -84,22 +112,19 @@ public class GameManager : MonoBehaviour
 
     public void SaveRunData(float hp, Dictionary<ItemSO, int> inventory, float money, float wCredits, float tCredits)
     {
-        PersistedHealth = hp;
-        PersistedInventory = new Dictionary<ItemSO, int>(inventory);
-        PersistedMoney = money;
-        PersistedWaveCredits = wCredits;
-        PersistedTrickleCredits = tCredits;
+        _currentRun.Player.Health = hp;
+        _currentRun.Inventory.Items.Clear();
+        foreach (var kvp in inventory)
+            _currentRun.Inventory.Items[kvp.Key] = kvp.Value;
+        _currentRun.Economy.Money = money;
+        _currentRun.Economy.WaveCredits = wCredits;
+        _currentRun.Economy.TrickleCredits = tCredits;
         Debug.Log("[GameManager] Run Saved.");
     }
 
     private void ClearPersistentData()
     {
-        PersistedHealth = -1;
-        PersistedInventory.Clear();
-        PersistedWaveCredits = 0;
-        PersistedTrickleCredits = 0;
-        KillCount = 0;
-        CurrentRotation = 0;
+        _currentRun.Clear();
     }
 
     // --- Scene Management ---
@@ -152,13 +177,34 @@ public class GameManager : MonoBehaviour
 
         yield return SceneManager.LoadSceneAsync(sceneName);
 
+        yield return null;
+
+        Debug.Log($"[RunState] Scene loaded. Before apply: Health={_currentRun.Player.Health} Money={_currentRun.Economy.Money} InventoryCount={_currentRun.Inventory.Items.Count} WaveCredits={_currentRun.Economy.WaveCredits} TrickleCredits={_currentRun.Economy.TrickleCredits} DiffStage={_currentRun.Difficulty.Stage}");
+        ApplyRunStateToScene();
+
         if (sceneName == hubSceneName) SetState(GameState.Hub);
         else if (sceneName == mainMenuSceneName) SetState(GameState.MainMenu);
         else
         {
             SetState(GameState.Playing);
-            if (shouldIncrementRotation) CurrentRotation++;
+            if (shouldIncrementRotation) _currentRun.Meta.CurrentRotation++;
         }
+    }
+
+    private void ApplyRunStateToScene()
+    {
+        MonoBehaviour[] all = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+        int applied = 0;
+        foreach (MonoBehaviour mb in all)
+        {
+            if (mb is IRunStateContributor contributor)
+            {
+                applied++;
+                Debug.Log($"[RunState] ApplyRunState to: {mb.GetType().Name} on {mb.gameObject.name}");
+                contributor.ApplyRunState(_currentRun);
+            }
+        }
+        Debug.Log($"[RunState] ApplyRunStateToScene done. Contributors applied to: {applied}");
     }
 
     // --- Game Logic ---
@@ -226,18 +272,18 @@ public class GameManager : MonoBehaviour
     private void HandleEnemyDeath(EnemyData data)
     {
         if (CurrentState == GameState.GameOver) return;
-        KillCount++;
-        OnKillCountChanged?.Invoke(KillCount);
+        _currentRun.Meta.KillCount++;
+        OnKillCountChanged?.Invoke(_currentRun.Meta.KillCount);
     }
 
     public int GetTargetGoalForCurrentLevel()
     {
-        if (CurrentRotation < levelGoals.Count)
+        if (_currentRun.Meta.CurrentRotation < levelGoals.Count)
         {
-            return levelGoals[CurrentRotation];
+            return levelGoals[_currentRun.Meta.CurrentRotation];
         }
         // Fallback scaling if we run out of defined goals
-        return levelGoals[levelGoals.Count - 1] + (CurrentRotation * 100);
+        return levelGoals[levelGoals.Count - 1] + (_currentRun.Meta.CurrentRotation * 100);
     }
 
     public void TogglePause()

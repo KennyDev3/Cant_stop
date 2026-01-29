@@ -16,7 +16,7 @@ public class DifficultyProfile
     public float creditMultiplierPerStep = 1.15f;
 }
 
-public class DifficultyManager : MonoBehaviour
+public class DifficultyManager : MonoBehaviour, IRunStateContributor
 {
     public static DifficultyManager Instance { get; private set; }
 
@@ -34,6 +34,40 @@ public class DifficultyManager : MonoBehaviour
 
     public event Action<int> OnDifficultyIncreased;
 
+    public void ContributeToRunState(RunState state)
+    {
+        state.Difficulty.Stage = DifficultyStage;
+        state.Difficulty.TotalRunTime = TotalRunTime;
+        state.Difficulty.HpMultiplier = HpMultiplier;
+        state.Difficulty.DamageMultiplier = DamageMultiplier;
+        state.Difficulty.CreditMultiplier = CreditMultiplier;
+    }
+
+    public void ApplyRunState(RunState state)
+    {
+        DifficultyStage = state.Difficulty.Stage;
+        TotalRunTime = state.Difficulty.TotalRunTime;
+        HpMultiplier = state.Difficulty.HpMultiplier;
+        DamageMultiplier = state.Difficulty.DamageMultiplier;
+        CreditMultiplier = state.Difficulty.CreditMultiplier;
+        _timer = 0f;
+        _currentInterval = (TotalRunTime >= profile.accelerationThreshold)
+            ? profile.acceleratedInterval : profile.standardInterval;
+        Debug.Log($"[RunState] DifficultyManager applied: Stage={DifficultyStage} TotalRunTime={TotalRunTime:F1} HpMult={HpMultiplier}");
+    }
+
+    private void OnEnable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
+    }
+
+    private void OnDisable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.UnregisterRunStateContributor(this);
+    }
+
     void Awake()
     {
         if (Instance != null && Instance != this)
@@ -42,8 +76,14 @@ public class DifficultyManager : MonoBehaviour
             return;
         }
         Instance = this;
-        DontDestroyOnLoad(gameObject); // ADD THIS LINE
+        DontDestroyOnLoad(gameObject);
         _currentInterval = profile.initialSafeTime;
+    }
+
+    void Start()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.RegisterRunStateContributor(this);
     }
 
     void Update()
