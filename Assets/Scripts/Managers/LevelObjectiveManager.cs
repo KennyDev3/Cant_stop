@@ -9,11 +9,20 @@ public class LevelObjectiveManager : MonoBehaviour
     public static LevelObjectiveManager Instance { get; private set; }
 
     [Header("Configuration")]
+    [Tooltip("Default only. Overwritten at runtime by GameManager.GetTargetGoalForCurrentLevel() when the scene loads. Set level goals on GameManager (Level Goals list).")]
     [SerializeField] private int targetGarbageValue = 500;
 
     [Header("Portal Spawning")]
-    [SerializeField] private GameObject portalPrefab;
+    [Tooltip("Distance in front of player to spawn portal(s).")]
     [SerializeField] private float portalSpawnDistance = 6f;
+    [Tooltip("Horizontal (X) distance between the two portals. Continue Run = right, Return to Hub = left. Same Y and Z for both.")]
+    [SerializeField] private float portalSpacingX = 20f;
+
+    [Header("Portal Destinations")]
+    [Tooltip("Each SO defines destination (where we go) and prefab (visual). Assign the three destination assets.")]
+    [SerializeField] private PortalDestinationSO continueRunDestination;
+    [SerializeField] private PortalDestinationSO returnToHubDestination;
+    [SerializeField] private PortalDestinationSO endRunDestination;
 
     [Header("UI References")]
     [SerializeField] private Slider progressSlider;
@@ -21,33 +30,46 @@ public class LevelObjectiveManager : MonoBehaviour
     [SerializeField] private RectTransform meterContainer;
     [SerializeField] private float popScaleAmount = 1.2f;
 
+   
+
+
     private int _currentDepositedValue = 0;
     private bool _isObjectiveComplete = false;
     private Coroutine _popCoroutine;
 
+
     private Vector3 _baseScale;
 
-
+  
     private void Awake()
     {
-        
         Instance = this;
 
         if (meterContainer != null)
-        {
             _baseScale = meterContainer.localScale;
-        }
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnSceneReady += HandleSceneReady;
+    }
+
+    private void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnSceneReady -= HandleSceneReady;
+        if (Instance == this)
+            Instance = null;
     }
 
     private void Start()
     {
         UpdateUI();
+    }
 
+    private void HandleSceneReady()
+    {
         if (GameManager.Instance != null)
-        {
-            // We'll add this method to GameManager in a moment
             targetGarbageValue = GameManager.Instance.GetTargetGoalForCurrentLevel();
-        }
+        UpdateUI();
     }
 
     private void UpdateUI()
@@ -81,31 +103,69 @@ public class LevelObjectiveManager : MonoBehaviour
         _currentDepositedValue = targetGarbageValue;
         UpdateUI();
 
-        Debug.Log("Objective Complete! Spawning Portal...");
-        SpawnPortalNearPlayer();
+        Debug.Log("Objective Complete! Spawning Portal(s)...");
+        SpawnPortalsNearPlayer();
     }
 
-
-    private void SpawnPortalNearPlayer()
+    private void SpawnPortalsNearPlayer()
     {
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player == null) return;
 
-        Vector3 spawnPos = player.transform.position + (player.transform.forward * portalSpawnDistance);
 
-        // Ensure portal spawns on the NavMesh so players can walk to it
+        Vector3 basePos = player.transform.position + (player.transform.forward * portalSpawnDistance);
+
         NavMeshHit hit;
-        if (NavMesh.SamplePosition(spawnPos, out hit, 5.0f, NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(basePos, out hit, 5.0f, NavMesh.AllAreas))
         {
-            spawnPos = hit.position;
+            basePos = hit.position;
         }
         else
         {
-            // Fallback: spawn on player's y level
-            spawnPos.y = player.transform.position.y;
+            basePos.y = player.transform.position.y;
         }
 
-        Instantiate(portalPrefab, spawnPos, Quaternion.identity);
+        bool isLastLevel = GameManager.Instance != null && GameManager.Instance.IsCurrentLevelLastInSequence();
+
+        if (isLastLevel)
+        {
+            SpawnSinglePortal(basePos, endRunDestination);
+        }
+        else
+        {
+            float halfSpacing = portalSpacingX * 0.5f;
+            Vector3 leftPos = basePos + Vector3.left * halfSpacing;
+            Vector3 rightPos = basePos + Vector3.right * halfSpacing;
+            SpawnSinglePortal(leftPos, returnToHubDestination);
+            SpawnSinglePortal(rightPos, continueRunDestination);
+        }
+    }
+
+    private void SpawnSinglePortal(Vector3 position, PortalDestinationSO destinationSO)
+    {
+        if (destinationSO == null)
+        {
+            Debug.LogWarning("[LevelObjectiveManager] Portal destination SO missing. Skipping spawn.");
+            return;
+        }
+
+        GameObject prefab = destinationSO.Prefab;
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[LevelObjectiveManager] Portal destination '{destinationSO.name}' has no prefab assigned. Skipping spawn.");
+            return;
+        }
+
+        GameObject go = Instantiate(prefab, position, Quaternion.identity);
+        Portal portal = go.GetComponent<Portal>();
+        if (portal != null)
+        {
+            portal.SetDestination(destinationSO);
+        }
+        else
+        {
+            Debug.LogWarning("[LevelObjectiveManager] Portal prefab has no Portal component.");
+        }
     }
 
     private IEnumerator AnimatePop()

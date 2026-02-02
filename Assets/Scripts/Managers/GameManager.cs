@@ -18,16 +18,22 @@ public class GameManager : MonoBehaviour
     public static GameManager Instance { get; private set; }
 
     [Header("Settings")]
+    [SerializeField] private string bootstrapSceneName = "Bootstrap";
     [SerializeField] private string mainMenuSceneName = "MainMenu";
     [SerializeField] private string hubSceneName = "HubScene";
 
     public string HubSceneName => hubSceneName;
+
+    [Header("Scene transition")]
+    [Tooltip("Duration of fade out and fade in (seconds) for scene transitions.")]
+    [SerializeField] private float sceneTransitionFadeDuration = 1f;
 
     [Header("Level Sequence")]
     [Tooltip("The exact names of your scenes in order. e.g. World_1, World_2")]
     [SerializeField] private List<string> levelOrder = new List<string>();
 
     private RunState _currentRun = new RunState();
+    private SceneFadeOverlay _sceneFadeOverlay;
 
     // Persistence variables
    
@@ -38,10 +44,15 @@ public class GameManager : MonoBehaviour
     public event Action<GameState> OnStateChanged;
     public event Action<int> OnKillCountChanged;
 
+    /// <summary>Fired once after a scene is loaded and run state (if any) is applied. Per-scene systems subscribe in Awake and refresh/resolve refs here instead of relying on Start order.</summary>
+    public event Action OnSceneReady;
+
     private float _defaultFixedDeltaTime;
     private Coroutine _hitStopCoroutine;
 
     private List<IRunStateContributor> _contributors = new List<IRunStateContributor>();
+
+    private bool _isLoading;
 
     public void RegisterRunStateContributor(IRunStateContributor contributor)
     {
@@ -73,6 +84,11 @@ public class GameManager : MonoBehaviour
     [Tooltip("Index 0 = World 1, Index 1 = World 2, etc.")]
     [SerializeField] private List<int> levelGoals = new List<int> { 50, 200 };
 
+    [Header("Debug")]
+    [Tooltip("Show current world/scene and rotation in Inspector at runtime.")]
+    [SerializeField] private bool showDebugInfo = true;
+    [SerializeField, TextArea(0, 2)] private string _debugCurrentWorld = "(runtime)";
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -84,6 +100,10 @@ public class GameManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
+        var overlayGo = new GameObject("SceneFadeOverlay");
+        overlayGo.transform.SetParent(transform);
+        _sceneFadeOverlay = overlayGo.AddComponent<SceneFadeOverlay>();
+
         _defaultFixedDeltaTime = Time.fixedDeltaTime;
         Time.maximumDeltaTime = 0.15f;
     }
@@ -93,7 +113,15 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        if (SceneManager.GetActiveScene().name == mainMenuSceneName)
+        string activeScene = SceneManager.GetActiveScene().name;
+
+        if (activeScene == bootstrapSceneName)
+        {
+            UpdateDebugCurrentWorld();
+            return;
+        }
+
+        if (activeScene == mainMenuSceneName)
         {
             SetState(GameState.MainMenu);
         }
@@ -107,7 +135,24 @@ public class GameManager : MonoBehaviour
             {
                 SetState(GameState.Playing);
             }
+            OnSceneReady?.Invoke();
         }
+
+        UpdateDebugCurrentWorld();
+    }
+
+    private void Update()
+    {
+        if (showDebugInfo)
+            UpdateDebugCurrentWorld();
+    }
+
+    private void UpdateDebugCurrentWorld()
+    {
+        if (!showDebugInfo) return;
+
+        string scene = SceneManager.GetActiveScene().name;
+        _debugCurrentWorld = $"Scene: {scene}\nRotation: {CurrentRotation} | State: {CurrentState}";
     }
 
     public void SaveRunData(float hp, Dictionary<ItemSO, int> inventory, float money, float wCredits, float tCredits)
@@ -127,60 +172,155 @@ public class GameManager : MonoBehaviour
         _currentRun.Clear();
     }
 
-    // --- Scene Management ---
+    // --- Scene Management (single entry point) ---
 
-    public void LoadNextLevelInSequence()
+    /// <summary>
+    /// Single entry point for all scene transitions. Resolves the request, collects or clears state as needed,
+    /// then runs the load coroutine. Ignores calls while a load is already in progress.
+    /// </summary>
+    public void RequestScene(SceneRequest request)
     {
-        string currentScene = SceneManager.GetActiveScene().name;
-        int currentIndex = levelOrder.IndexOf(currentScene);
-
-        // If current level is not in the list (e.g. Hub), start from the beginning
-        if (currentIndex == -1)
+        if (_isLoading)
         {
-            if (levelOrder.Count > 0)
-            {
-                StartCoroutine(LoadSceneRoutine(levelOrder[0], true));
-            }
-            else
-            {
-                Debug.LogError("[GameManager] Level Order list is empty!");
-            }
+            Debug.LogWarning("[GameManager] RequestScene ignored: load already in progress.");
             return;
         }
 
-        // Check if there is a next level
-        if (currentIndex + 1 < levelOrder.Count)
+        if (!ResolveSceneRequest(request, out string sceneName, out bool shouldIncrementRotation))
         {
-            string nextLevel = levelOrder[currentIndex + 1];
-            StartCoroutine(LoadSceneRoutine(nextLevel, true));
+            return;
         }
-        // If no next level, we Win
-        else
+
+        if (request.Type == SceneRequest.RequestType.RestartCurrentLevel)
         {
-            Debug.Log("[GameManager] End of Sequence reached. Win State.");
-            SetState(GameState.Paused);
+            ClearPersistentData();
+            if (DifficultyManager.Instance != null)
+                DifficultyManager.Instance.ResetDifficulty();
         }
+
+        if (request.PreserveRunState)
+            CollectRunState();
+
+        StartCoroutine(LoadSceneRoutine(sceneName, request.PreserveRunState, shouldIncrementRotation));
+    }
+
+    /// <summary>Resolves a SceneRequest to concrete scene name and flags. Returns false if no load should occur (e.g. win state).</summary>
+    private bool ResolveSceneRequest(SceneRequest request, out string sceneName, out bool shouldIncrementRotation)
+    {
+        sceneName = null;
+        shouldIncrementRotation = false;
+
+        switch (request.Type)
+        {
+            case SceneRequest.RequestType.MainMenu:
+                sceneName = mainMenuSceneName;
+                return true;
+
+            case SceneRequest.RequestType.Hub:
+                sceneName = hubSceneName;
+                return true;
+
+            case SceneRequest.RequestType.SpecificScene:
+                if (string.IsNullOrEmpty(request.SceneName))
+                {
+                    Debug.LogError("[GameManager] SceneRequest.SpecificScene has no SceneName.");
+                    return false;
+                }
+                sceneName = request.SceneName;
+                return true;
+
+            case SceneRequest.RequestType.RestartCurrentLevel:
+                sceneName = SceneManager.GetActiveScene().name;
+                return true;
+
+            case SceneRequest.RequestType.NextLevelInSequence:
+                string currentScene = SceneManager.GetActiveScene().name;
+                int currentIndex = levelOrder.IndexOf(currentScene);
+
+                if (currentIndex == -1)
+                {
+                    if (levelOrder.Count > 0)
+                    {
+                        sceneName = levelOrder[0];
+                        shouldIncrementRotation = true;
+                        return true;
+                    }
+                    Debug.LogError("[GameManager] Level Order list is empty!");
+                    return false;
+                }
+
+                if (currentIndex + 1 < levelOrder.Count)
+                {
+                    sceneName = levelOrder[currentIndex + 1];
+                    shouldIncrementRotation = true;
+                    return true;
+                }
+
+                Debug.Log("[GameManager] End of Sequence reached. Win State.");
+                SetState(GameState.Paused);
+                return false;
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>True when the current scene is the last in the level sequence (e.g. World_2). Used to spawn one End Run portal instead of Continue + Return to Hub.</summary>
+    public bool IsCurrentLevelLastInSequence()
+    {
+        if (levelOrder == null || levelOrder.Count == 0) return false;
+        string currentScene = SceneManager.GetActiveScene().name;
+        int index = levelOrder.IndexOf(currentScene);
+        return index >= 0 && index == levelOrder.Count - 1;
+    }
+
+    public void LoadNextLevelInSequence()
+    {
+        RequestScene(SceneRequest.ToNextLevelInSequence());
     }
 
     public void LoadSpecificLevel(string sceneName)
     {
-        StartCoroutine(LoadSceneRoutine(sceneName, false)); // False usually for Hub/Menus
+        RequestScene(SceneRequest.ToScene(sceneName, false));
     }
 
-    private IEnumerator LoadSceneRoutine(string sceneName, bool shouldIncrementRotation)
+    public void RestartGame()
     {
+        RequestScene(SceneRequest.RestartCurrentLevel());
+    }
+
+    public void ReturnToMainMenu()
+    {
+        RequestScene(SceneRequest.ToMainMenu());
+    }
+
+    private IEnumerator LoadSceneRoutine(string sceneName, bool preserveRunState, bool shouldIncrementRotation)
+    {
+        _isLoading = true;
+
         Time.timeScale = 1f;
         Time.fixedDeltaTime = _defaultFixedDeltaTime;
 
         if (EnemyPooler.Instance != null)
             EnemyPooler.Instance.ClearPool();
 
+        // Fade out before loading
+        if (_sceneFadeOverlay != null && sceneTransitionFadeDuration > 0f)
+            yield return _sceneFadeOverlay.FadeOut(sceneTransitionFadeDuration);
+
         yield return SceneManager.LoadSceneAsync(sceneName);
 
         yield return null;
 
-        Debug.Log($"[RunState] Scene loaded. Before apply: Health={_currentRun.Player.Health} Money={_currentRun.Economy.Money} InventoryCount={_currentRun.Inventory.Items.Count} WaveCredits={_currentRun.Economy.WaveCredits} TrickleCredits={_currentRun.Economy.TrickleCredits} DiffStage={_currentRun.Difficulty.Stage}");
-        ApplyRunStateToScene();
+        // Fade in after scene is loaded
+        if (_sceneFadeOverlay != null && sceneTransitionFadeDuration > 0f)
+            yield return _sceneFadeOverlay.FadeIn(sceneTransitionFadeDuration);
+
+        if (preserveRunState)
+        {
+            Debug.Log($"[RunState] Scene loaded. Before apply: Health={_currentRun.Player.Health} Money={_currentRun.Economy.Money} InventoryCount={_currentRun.Inventory.Items.Count} WaveCredits={_currentRun.Economy.WaveCredits} TrickleCredits={_currentRun.Economy.TrickleCredits} DiffStage={_currentRun.Difficulty.Stage}");
+            ApplyRunStateToScene();
+        }
 
         if (sceneName == hubSceneName) SetState(GameState.Hub);
         else if (sceneName == mainMenuSceneName) SetState(GameState.MainMenu);
@@ -189,6 +329,10 @@ public class GameManager : MonoBehaviour
             SetState(GameState.Playing);
             if (shouldIncrementRotation) _currentRun.Meta.CurrentRotation++;
         }
+
+        _isLoading = false;
+        OnSceneReady?.Invoke();
+        UpdateDebugCurrentWorld();
     }
 
     private void ApplyRunStateToScene()
@@ -292,17 +436,6 @@ public class GameManager : MonoBehaviour
             SetState(GameState.Paused);
         else if (CurrentState == GameState.Paused)
             SetState(GameState.Playing);
-    }
-
-    public void RestartGame()
-    {
-        ClearPersistentData();
-        StartCoroutine(LoadSceneRoutine(SceneManager.GetActiveScene().name, false));
-    }
-
-    public void ReturnToMainMenu()
-    {
-        StartCoroutine(LoadSceneRoutine(mainMenuSceneName, false));
     }
 
     public void TriggerGameOver() => SetState(GameState.GameOver);

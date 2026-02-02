@@ -15,6 +15,12 @@ public class CorpseManager : MonoBehaviour
         Instance = this;
     }
 
+    void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     public void RegisterCorpse(EnemyHealth corpse)
     {
         activeCorpses.Add(corpse);

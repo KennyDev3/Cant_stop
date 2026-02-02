@@ -36,33 +36,33 @@ public class UIManager : MonoBehaviour
 
     private void Awake()
     {
-        // Initialize the Singleton
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
+            return;
         }
-        else
-        {
-            Instance = this;
-        }
-    }
+        Instance = this;
 
-    private void Start()
-    {
         if (GameManager.Instance != null)
-        {
-            GameManager.Instance.OnKillCountChanged += UpdateKillCountUI;
-
-            UpdateKillCountUI(GameManager.Instance.KillCount);
-        }
+            GameManager.Instance.OnSceneReady += HandleSceneReady;
     }
 
     private void OnDestroy()
     {
         if (GameManager.Instance != null)
         {
+            GameManager.Instance.OnSceneReady -= HandleSceneReady;
             GameManager.Instance.OnKillCountChanged -= UpdateKillCountUI;
         }
+        if (Instance == this)
+            Instance = null;
+    }
+
+    private void HandleSceneReady()
+    {
+        if (GameManager.Instance == null) return;
+        GameManager.Instance.OnKillCountChanged += UpdateKillCountUI;
+        UpdateKillCountUI(GameManager.Instance.KillCount);
     }
 
     // --- UI Update Methods ---
