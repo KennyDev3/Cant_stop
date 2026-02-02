@@ -4,12 +4,9 @@ using TMPro;
 
 public class Portal : MonoBehaviour
 {
-    [Header("Settings")]
-    [Tooltip("Leave EMPTY to let GameManager decide the next level automatically. Only fill this if you want to force a specific level (like a secret level).")]
-    [SerializeField] private string nextSceneNameOverride;
-
-    [SerializeField] private bool returnToHub = false;
-    [SerializeField] private bool increaseDifficulty = true;
+    [Header("Destination")]
+    [Tooltip("Assign in prefab, or set at runtime via SetDestination() (e.g. when LevelObjectiveManager spawns portals).")]
+    [SerializeField] private PortalDestinationSO destination;
 
     [Header("Portal placement")]
     [Tooltip("World Y position when the portal spawns. Text animation uses the label's current transform as baseline.")]
@@ -23,6 +20,10 @@ public class Portal : MonoBehaviour
     [SerializeField] private Vector3 labelLocalScale = Vector3.one;
     [Tooltip("Label's local rotation (Euler) in the prefab.")]
     [SerializeField] private Vector3 labelLocalRotationEuler = Vector3.zero;
+
+    [Header("Audio")]
+    [SerializeField] SoundDef playerPortalOpeningSound;
+    [SerializeField] SoundDef playerEnteringPortalSound;
 
     private bool _triggered = false;
 
@@ -42,9 +43,28 @@ public class Portal : MonoBehaviour
 
     private void Start()
     {
-        // Spawn at desired height (prefab scale 2.5,2.5,2.5 is unchanged)
+        // Spawn at desired height so all portals share same Y (and Z is set by spawner)
         Vector3 p = transform.position;
         transform.position = new Vector3(p.x, spawnPositionY, p.z);
+
+        ApplyDestinationLabel();
+
+        SoundManager.Instance.Play(playerPortalOpeningSound,transform.position); 
+
+    }
+
+    /// <summary>Assign destination at runtime (e.g. when LevelObjectiveManager spawns multiple portals from one prefab).</summary>
+    public void SetDestination(PortalDestinationSO dest)
+    {
+        destination = dest;
+        ApplyDestinationLabel();
+    }
+
+    private void ApplyDestinationLabel()
+    {
+        if (destination == null || portalLabel == null) return;
+        if (string.IsNullOrEmpty(destination.LabelText)) return;
+        portalLabel.text = destination.LabelText;
     }
 
     private void Update()
@@ -75,6 +95,8 @@ public class Portal : MonoBehaviour
         {
             _triggered = true;
             ActivatePortal(other.gameObject);
+
+            SoundManager.Instance.Play(playerEnteringPortalSound, transform.position);
         }
     }
 
@@ -86,28 +108,20 @@ public class Portal : MonoBehaviour
 
     private void ActivatePortal(GameObject playerObj)
     {
-        if (GameManager.Instance == null)
+        if (destination == null)
         {
-            Debug.LogWarning("[Portal] No GameManager found. Reloading current scene as fallback.");
-            SceneManager.LoadScene(string.IsNullOrEmpty(nextSceneNameOverride) ? SceneManager.GetActiveScene().name : nextSceneNameOverride);
+            Debug.LogWarning("[Portal] No destination assigned. Cannot activate.");
             return;
         }
 
-        Debug.Log("<color=cyan>[Portal]</color> Activating... Collecting run state.");
+        if (GameManager.Instance == null)
+        {
+            Debug.LogWarning("[Portal] No GameManager found. Reloading current scene as fallback.");
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            return;
+        }
 
-        GameManager.Instance.CollectRunState();
-
-        if (returnToHub)
-        {
-            GameManager.Instance.LoadSpecificLevel(GameManager.Instance.HubSceneName);
-        }
-        else if (!string.IsNullOrEmpty(nextSceneNameOverride))
-        {
-            GameManager.Instance.LoadSpecificLevel(nextSceneNameOverride);
-        }
-        else
-        {
-            GameManager.Instance.LoadNextLevelInSequence();
-        }
+        Debug.Log("<color=cyan>[Portal]</color> Activating: " + destination.name);
+        GameManager.Instance.RequestScene(destination.GetRequest());
     }
 }

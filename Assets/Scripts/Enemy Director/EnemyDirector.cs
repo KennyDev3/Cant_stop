@@ -103,9 +103,10 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
         currentLivingEnemies = 0;
 
         if (spawnIntensityCurve == null || spawnIntensityCurve.keys.Length == 0)
-        {
             spawnIntensityCurve = AnimationCurve.EaseInOut(0, 0.5f, 1, 1f);
-        }
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnSceneReady += HandleSceneReady;
     }
 
     private void OnEnable()
@@ -122,15 +123,26 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
         EnemyHealth.OnEnemyDeath -= HandleEnemyDeath;
     }
 
+    private void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnSceneReady -= HandleSceneReady;
+        if (Instance == this)
+            Instance = null;
+    }
+
     private void Start()
     {
         if (GameManager.Instance != null)
             GameManager.Instance.RegisterRunStateContributor(this);
 
+        waveTimer = 0f;
+    }
+
+    private void HandleSceneReady()
+    {
         GameObject p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) playerTransform = p.transform;
-
-        waveTimer = 0f;
     }
 
     public void ContributeToRunState(RunState state)

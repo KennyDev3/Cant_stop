@@ -16,11 +16,11 @@ public class PlayerInteractor : MonoBehaviour
         _input = GetComponent<StarterAssetsInputs>();
         _mainCamera = Camera.main;
 
-        _shopManager = FindFirstObjectByType<ShopManager>();
-        if (_shopManager == null)
-        {
-            Debug.LogError("PlayerInteractor cannot find a ShopManager in the scene.");
-        }
+        //_shopManager = FindFirstObjectByType<ShopManager>();
+        //if (_shopManager == null)
+        //{
+        //    Debug.LogError("PlayerInteractor cannot find a ShopManager in the scene.");
+        //}
     }
 
     void Update()
