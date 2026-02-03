@@ -8,6 +8,7 @@ public class RunState
 {
     public PlayerState Player = new PlayerState();
     public InventoryState Inventory = new InventoryState();
+    public ResourceState Resources = new ResourceState();
     public EconomyState Economy = new EconomyState();
     public DifficultyState Difficulty = new DifficultyState();
     public TurretState Turret = new TurretState();
@@ -17,6 +18,7 @@ public class RunState
     {
         Player.Clear();
         Inventory.Clear();
+        Resources.Clear();
         Economy.Clear();
         Difficulty.Clear();
         Turret.Clear();
@@ -28,6 +30,7 @@ public class RunState
         var clone = new RunState();
         clone.Player = Player.Clone();
         clone.Inventory = Inventory.Clone();
+        clone.Resources = Resources.Clone();
         clone.Economy = Economy.Clone();
         clone.Difficulty = Difficulty.Clone();
         clone.Turret = Turret.Clone();
@@ -66,6 +69,25 @@ public class RunState
             var clone = new InventoryState();
             foreach (var kvp in Items)
                 clone.Items[kvp.Key] = kvp.Value;
+            return clone;
+        }
+    }
+
+    /// <summary>Current run resource counts. Persists World_1 → World_2; flushed to hub bank and cleared when entering Hub.</summary>
+    public class ResourceState
+    {
+        public Dictionary<ResourceSO, int> Counts = new Dictionary<ResourceSO, int>();
+
+        public void Clear()
+        {
+            Counts.Clear();
+        }
+
+        public ResourceState Clone()
+        {
+            var clone = new ResourceState();
+            foreach (var kvp in Counts)
+                clone.Counts[kvp.Key] = kvp.Value;
             return clone;
         }
     }

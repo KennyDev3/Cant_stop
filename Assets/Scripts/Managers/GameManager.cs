@@ -35,6 +35,19 @@ public class GameManager : MonoBehaviour
     private RunState _currentRun = new RunState();
     private SceneFadeOverlay _sceneFadeOverlay;
 
+    [Header("Hub resource bank")]
+    [Tooltip("Session-only. Run resources are flushed here when entering Hub. Not saved (no save file yet).")]
+    [SerializeField] private List<HubBankDebugEntry> debugHubBank = new List<HubBankDebugEntry>();
+
+    [System.Serializable]
+    public struct HubBankDebugEntry
+    {
+        public ResourceSO resource;
+        public int count;
+    }
+
+    private Dictionary<ResourceSO, int> _hubBank = new Dictionary<ResourceSO, int>();
+
     // Persistence variables
    
     public int CurrentRotation => _currentRun.Meta.CurrentRotation;
@@ -99,6 +112,8 @@ public class GameManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        LoadDebugHubBankIntoBank();
 
         var overlayGo = new GameObject("SceneFadeOverlay");
         overlayGo.transform.SetParent(transform);
@@ -274,6 +289,13 @@ public class GameManager : MonoBehaviour
         return index >= 0 && index == levelOrder.Count - 1;
     }
 
+    /// <summary>Returns the index of the current scene in levelOrder, or -1 if not in list. Used by EnemyDirector for per-level intensity caps.</summary>
+    public int GetCurrentLevelIndex()
+    {
+        if (levelOrder == null || levelOrder.Count == 0) return -1;
+        return levelOrder.IndexOf(SceneManager.GetActiveScene().name);
+    }
+
     public void LoadNextLevelInSequence()
     {
         RequestScene(SceneRequest.ToNextLevelInSequence());
@@ -318,6 +340,10 @@ public class GameManager : MonoBehaviour
 
         if (preserveRunState)
         {
+            if (sceneName == hubSceneName)
+            {
+                FlushRunResourcesToHubBank();
+            }
             Debug.Log($"[RunState] Scene loaded. Before apply: Health={_currentRun.Player.Health} Money={_currentRun.Economy.Money} InventoryCount={_currentRun.Inventory.Items.Count} WaveCredits={_currentRun.Economy.WaveCredits} TrickleCredits={_currentRun.Economy.TrickleCredits} DiffStage={_currentRun.Difficulty.Stage}");
             ApplyRunStateToScene();
         }
@@ -441,4 +467,47 @@ public class GameManager : MonoBehaviour
     public void TriggerGameOver() => SetState(GameState.GameOver);
     public void SetCursorState(bool visible) { Cursor.visible = visible; Cursor.lockState = visible ? CursorLockMode.None : CursorLockMode.Locked; }
     public void QuitGame() => Application.Quit();
+
+    /// <summary>Session-only hub bank. Returns 0 if type not in bank. Used by hub bench UI.</summary>
+    public int GetHubBankCount(ResourceSO type)
+    {
+        if (type == null) return 0;
+        return _hubBank.TryGetValue(type, out int c) ? c : 0;
+    }
+
+    /// <summary>When entering Hub with run state, add run resources to hub bank and clear run resources so ApplyRunState gives player 0/0/0.</summary>
+    private void FlushRunResourcesToHubBank()
+    {
+        foreach (var kvp in _currentRun.Resources.Counts)
+        {
+            if (kvp.Key == null) continue;
+            if (!_hubBank.ContainsKey(kvp.Key))
+                _hubBank[kvp.Key] = 0;
+            _hubBank[kvp.Key] += kvp.Value;
+        }
+        _currentRun.Resources.Clear();
+        UpdateDebugHubBank();
+        Debug.Log("[GameManager] Run resources flushed to hub bank.");
+    }
+
+    private void UpdateDebugHubBank()
+    {
+        debugHubBank.Clear();
+        foreach (var kvp in _hubBank)
+        {
+            if (kvp.Key == null) continue;
+            debugHubBank.Add(new HubBankDebugEntry { resource = kvp.Key, count = kvp.Value });
+        }
+    }
+
+    /// <summary>At startup, load Inspector-set debug hub bank into the real bank so starting in Hub shows correct counts.</summary>
+    private void LoadDebugHubBankIntoBank()
+    {
+        if (debugHubBank == null) return;
+        foreach (var entry in debugHubBank)
+        {
+            if (entry.resource == null) continue;
+            _hubBank[entry.resource] = Mathf.Max(0, entry.count);
+        }
+    }
 }

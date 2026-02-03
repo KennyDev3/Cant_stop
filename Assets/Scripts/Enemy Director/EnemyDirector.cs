@@ -60,7 +60,30 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
     [SerializeField] private float minSpawnRadius = 6f;
     [SerializeField] private float maxSpawnRadius = 16f;
 
+    [Header("Level Intensity")]
+    [Tooltip("Per-level caps over time. Index 0 = first level (e.g. World_1), index 1 = second (e.g. World_2). Each profile: (atMinute, maxEnemies) bands; caps are lerped between bands.")]
+    [SerializeField] private List<LevelIntensityProfile> levelIntensityProfiles = new List<LevelIntensityProfile>();
+
+    [Tooltip("When true, time display shows time in current level; when false, total run time.")]
+    [SerializeField] private bool showLevelTimeInUI = true;
+
     private List<EnemyData> _affordableCache = new List<EnemyData>();
+
+    [System.Serializable]
+    public class LevelIntensityBand
+    {
+        [Tooltip("At this many minutes into the level, cap is maxEnemies. Values are lerped between bands.")]
+        public float atMinute;
+        public int maxEnemies;
+    }
+
+    [System.Serializable]
+    public class LevelIntensityProfile
+    {
+        [Tooltip("Rename for readability in the Inspector (e.g. World_1, World_2).")]
+        public string profileName = "";
+        public List<LevelIntensityBand> bands = new List<LevelIntensityBand>();
+    }
 
     [System.Serializable]
     public class EnemyConfig
@@ -93,6 +116,9 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
     private float waveTimer;
     private bool isWaveActive;
     private Coroutine activeWaveCoroutine;
+
+    private float levelElapsedTime;
+    private int cachedEffectiveMaxEnemies;
 
     private void Awake()
     {
@@ -141,6 +167,7 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
 
     private void HandleSceneReady()
     {
+        levelElapsedTime = 0f;
         GameObject p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) playerTransform = p.transform;
     }
@@ -161,6 +188,9 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
     private void Update()
     {
         if (playerTransform == null) return;
+
+        levelElapsedTime += Time.deltaTime;
+        cachedEffectiveMaxEnemies = GetEffectiveMaxEnemies();
 
         UpdateUI();
         HandleEconomyAndTimers();
@@ -207,16 +237,47 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
         }
     }
 
+    private int GetEffectiveMaxEnemies()
+    {
+        if (GameManager.Instance == null) return maxActiveEnemies;
+        int levelIndex = GameManager.Instance.GetCurrentLevelIndex();
+        if (levelIndex < 0 || levelIntensityProfiles == null || levelIntensityProfiles.Count == 0)
+            return maxActiveEnemies;
+
+        int profileIndex = levelIndex >= levelIntensityProfiles.Count ? levelIntensityProfiles.Count - 1 : levelIndex;
+        LevelIntensityProfile profile = levelIntensityProfiles[profileIndex];
+        if (profile == null || profile.bands == null || profile.bands.Count == 0)
+            return maxActiveEnemies;
+
+        List<LevelIntensityBand> bands = profile.bands;
+        float minutes = levelElapsedTime / 60f;
+
+        if (minutes <= bands[0].atMinute)
+            return Mathf.Max(1, bands[0].maxEnemies);
+
+        for (int i = 0; i < bands.Count - 1; i++)
+        {
+            if (minutes >= bands[i].atMinute && minutes < bands[i + 1].atMinute)
+            {
+                float t = (minutes - bands[i].atMinute) / Mathf.Max(0.001f, bands[i + 1].atMinute - bands[i].atMinute);
+                float cap = Mathf.Lerp(bands[i].maxEnemies, bands[i + 1].maxEnemies, t);
+                return Mathf.Max(1, Mathf.RoundToInt(cap));
+            }
+        }
+
+        return Mathf.Max(1, bands[bands.Count - 1].maxEnemies);
+    }
+
     private void AttemptTrickleSpawn()
     {
-        if (currentLivingEnemies >= maxActiveEnemies || trickleCredits <= 0) return;
+        if (currentLivingEnemies >= cachedEffectiveMaxEnemies || trickleCredits <= 0) return;
 
         int spawnCountGoal = Random.Range(1, maxTrickleGroupSize + 1);
         int spawnedThisBeat = 0;
 
         for (int i = 0; i < spawnCountGoal; i++)
         {
-            if (currentLivingEnemies >= maxActiveEnemies) break;
+            if (currentLivingEnemies >= cachedEffectiveMaxEnemies) break;
 
             List<EnemyData> trickleOptions = enemyList
                 .Where(x => x.canSpawn && x.enemyData != null &&
@@ -244,7 +305,7 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
     private void TriggerWave()
     {
         if (isWaveActive) return;
-        if (currentLivingEnemies >= maxActiveEnemies) return;
+        if (currentLivingEnemies >= cachedEffectiveMaxEnemies) return;
         if (enemyList == null || enemyList.Count == 0) return;
 
         if (activeWaveCoroutine != null)
@@ -284,7 +345,7 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
             int spawnedInBatch = 0;
             for (int i = 0; i < batchSize; i++)
             {
-                if (currentLivingEnemies >= maxActiveEnemies) break;
+                if (currentLivingEnemies >= cachedEffectiveMaxEnemies) break;
                 if (waveCredits <= 0) break;
                 if (amountSpentThisWave >= currentSpendingLimit) break;
 
@@ -423,7 +484,7 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
         }
 
         if (livingEnemiesText != null)
-            livingEnemiesText.text = $"Enemies: {currentLivingEnemies}/{maxActiveEnemies}";
+            livingEnemiesText.text = $"Enemies: {currentLivingEnemies}/{cachedEffectiveMaxEnemies}";
 
         if (waveStatusText != null)
         {
@@ -442,7 +503,7 @@ public class EnemyDirector : MonoBehaviour, IRunStateContributor
 
         if (timeText != null)
         {
-            float t = DifficultyManager.Instance.TotalRunTime;
+            float t = showLevelTimeInUI ? levelElapsedTime : DifficultyManager.Instance.TotalRunTime;
             timeText.text = string.Format("{0:00}:{1:00}", Mathf.FloorToInt(t / 60), Mathf.FloorToInt(t % 60));
         }
 
