@@ -32,6 +32,17 @@ public class UIManager : MonoBehaviour
     [Header("Kill Count UI")]
     public TextMeshProUGUI killCountText;
 
+    [Header("Run Resources UI")]
+    [Tooltip("Assign one entry per resource type (e.g. 3). Wire PlayerResourceHolder.onResourceCountChanged to UpdateResourceCount.")]
+    [SerializeField] private List<ResourceDisplaySlot> resourceSlots = new List<ResourceDisplaySlot>();
+
+    [System.Serializable]
+    public struct ResourceDisplaySlot
+    {
+        public ResourceSO resourceType;
+        public TextMeshProUGUI countText;
+    }
+
     private Dictionary<ItemSO, ItemSlotUI> _itemSlots = new Dictionary<ItemSO, ItemSlotUI>();
 
     private void Awake()
@@ -107,6 +118,18 @@ public class UIManager : MonoBehaviour
         {
             pickupCooldownSlider.maxValue = maxTime;
             pickupCooldownSlider.value = currentTime;
+        }
+    }
+
+    /// <summary>Call from PlayerResourceHolder.onResourceCountChanged so run HUD updates when a resource is picked up (or state applied).</summary>
+    public void UpdateResourceCount(ResourceSO type, int count)
+    {
+        if (type == null || resourceSlots == null) return;
+        foreach (var slot in resourceSlots)
+        {
+            if (slot.resourceType != type || slot.countText == null) continue;
+            slot.countText.text = count.ToString();
+            return;
         }
     }
 
