@@ -10,8 +10,8 @@ public class DisposalUI : MonoBehaviour
     {
         if (infoText == null) return;
 
-        // Line 1: Cost
-        string line1 = $"Cost: {currentCost}/{maxCost}";
+        // Line 1: Capacity progress toward unlock
+        string line1 = $"Capacity: {currentCost}/{maxCost}";
 
         // Line 2: Bullseye status
         string line2;

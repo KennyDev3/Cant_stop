@@ -170,11 +170,10 @@ public class GarbageBundle : MonoBehaviour, IInteractable
         return _contents;
     }
 
-    // --- RESTORED METHOD ---
-    public int GetTotalValue()
+    public int GetTotalCapacity()
     {
         int total = 0;
-        foreach (var item in _contents) total += item.value;
+        foreach (var item in _contents) total += item.capacityCost;
         return total;
     }
 
@@ -255,7 +254,7 @@ public class GarbageBundle : MonoBehaviour, IInteractable
 
     public string GetInteractionPrompt()
     {
-        return $"Pick up Bundle (${GetTotalValue()})";
+        return $"Pick up Bundle (+{GetTotalCapacity()})";
     }
 
     public void Highlight()

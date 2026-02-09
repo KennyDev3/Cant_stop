@@ -6,11 +6,11 @@ public class GarbageData : ScriptableObject
     [Tooltip("The name of the garbage item, e.g., 'Old Newspaper'")]
     public string itemName;
 
-    [Tooltip("How much this item 'weighs'. Contributes to player's total capacity.")]
+    [Tooltip("Weight/capacity. Used for carry limit and disposal value (how much it weighs = how much it's worth).")]
     public int capacityCost = 1;
 
-    [Tooltip("How much cash this item is worth when dropped off.")]
-    public int value = 5;
+    [Tooltip("If true, enemy loot using this data can be auto-collected by a magnet radius around the player (Vampire Survivors style).")]
+    public bool useMagnetPickup = false;
 
     [Tooltip("The tier of the garbage item (1-3). Determines the minimum Player Strength needed to pick it up.")]
     [Range(1, 3)] // Add a range for clarity in the inspector

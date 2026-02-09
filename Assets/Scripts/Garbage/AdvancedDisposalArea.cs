@@ -38,7 +38,7 @@ public class AdvancedDisposalArea : MonoBehaviour
     [SerializeField] private SoundDef processingMoneySound;
     [SerializeField] private float pitchStep = 0.2f;
 
-    private int _currentAccumulatedValue = 0;
+    private int _currentAccumulatedCapacity = 0;
     private int _bullseyeAttemptsUsed = 0;
     private bool _bullseyeHitSucceeded = false;
     private bool _costReached = false;
@@ -61,7 +61,7 @@ public class AdvancedDisposalArea : MonoBehaviour
     {
         if (_uiInstance == null) return;
         int attemptsLeft = maxBullseyeAttempts - _bullseyeAttemptsUsed;
-        _uiInstance.UpdateDisplay(_currentAccumulatedValue, rewardLogic.GetCost(), attemptsLeft, _bullseyeHitSucceeded);
+        _uiInstance.UpdateDisplay(_currentAccumulatedCapacity, rewardLogic.GetCost(), attemptsLeft, _bullseyeHitSucceeded);
     }
 
     public void NotifyTriggerEnter(Collider other, GameObject sender)
@@ -151,19 +151,19 @@ public class AdvancedDisposalArea : MonoBehaviour
         List<GarbageData> bundleContents = new List<GarbageData>(bundle.GetContents());
         int targetCost = rewardLogic.GetCost();
 
-        // Determine how much value we actually take from this bundle
-        int remainingNeeded = targetCost - _currentAccumulatedValue;
-        int totalBundleValue = bundle.GetTotalValue();
-        int valueToConsume = Mathf.Min(totalBundleValue, remainingNeeded);
+        // Determine how much capacity we actually take from this bundle
+        int remainingNeeded = targetCost - _currentAccumulatedCapacity;
+        int totalBundleCapacity = bundle.GetTotalCapacity();
+        int capacityToConsume = Mathf.Min(totalBundleCapacity, remainingNeeded);
 
         // Logic for splitting "Change":
         List<GarbageData> refundList = new List<GarbageData>();
         int currentTaken = 0;
 
-        // Iterate backwards through contents to consume items until we hit valueToConsume
+        // Iterate backwards through contents to consume items until we hit capacityToConsume
         for (int i = bundleContents.Count - 1; i >= 0; i--)
         {
-            if (currentTaken >= valueToConsume)
+            if (currentTaken >= capacityToConsume)
             {
                 // We've already paid the cost, return the rest of the items
                 refundList.Add(bundleContents[i]);
@@ -171,9 +171,7 @@ public class AdvancedDisposalArea : MonoBehaviour
             }
             else
             {
-                currentTaken += bundleContents[i].value;
-                // If this item made us go OVER, we should technically return the overflow 
-                // but since these are distinct items, we just consume the item.
+                currentTaken += bundleContents[i].capacityCost;
             }
         }
 
@@ -182,22 +180,19 @@ public class AdvancedDisposalArea : MonoBehaviour
         if (bundle.TryGetComponent<Collider>(out Collider col)) col.enabled = false;
 
         float timePerPulse = totalProcessTime / pulses;
-        int valPerPulse = Mathf.CeilToInt((float)valueToConsume / pulses);
+        int capacityPerPulse = Mathf.CeilToInt((float)capacityToConsume / pulses);
 
         for (int i = 1; i <= pulses; i++)
         {
             yield return new WaitForSeconds(timePerPulse);
             if (bundle == null) break;
 
-            _currentAccumulatedValue += valPerPulse;
-
-            // Notify LevelObjectiveManager garbage is accumulated towards spawning a prot 
+            _currentAccumulatedCapacity += capacityPerPulse;
 
             if (LevelObjectiveManager.Instance != null)
             {
-                LevelObjectiveManager.Instance.AddProgress(valPerPulse);
+                LevelObjectiveManager.Instance.AddProgress(capacityPerPulse);
             }
-            //////////////
             
             bundle.ShrinkToPercentage(1f - ((float)i / pulses));
 
@@ -209,7 +204,7 @@ public class AdvancedDisposalArea : MonoBehaviour
 
             UpdateUI();
 
-            if (_currentAccumulatedValue >= targetCost && !_costReached)
+            if (_currentAccumulatedCapacity >= targetCost && !_costReached)
             {
                 _costReached = true;
                 _isAreaActive = false;

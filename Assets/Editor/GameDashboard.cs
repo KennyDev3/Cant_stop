@@ -1,27 +1,21 @@
 using UnityEngine;
 using UnityEditor;
-using UnityEngine.SceneManagement;
 using StarterAssets;
+using System;
+using System.Linq;
 
 public class GameDashboard : EditorWindow
 {
     // --- 1. THE FIELDS ---
-    [Header("Scene Objects")]
-    public GameObject gameManagerObj;
-    public GameObject levelManagersObj;
+    [Header("Auto-resolved (Scene)")]
+    [SerializeField] private GameManager gameManager;
+    [SerializeField] private EnemyDirector enemyDirector;
+    [SerializeField] private ThirdPersonController playerController;
+    [SerializeField] private PlayerHealth playerHealth;
+    [SerializeField] private PlayerGarbageHandler playerGarbage;
 
-    [Header("Player Scripts")]
-    public ThirdPersonController playerController;
-    public PlayerHealth playerHealth;
-
-    [Header("Data Assets")]
-    public TurretData turretData;
-
-    // --- KEYS FOR SAVING ---
-    // We use these keys to store the names of your objects in the Editor's memory
-    private const string KEY_GM_NAME = "DASH_GM_NAME";
-    private const string KEY_LVL_NAME = "DASH_LVL_NAME";
-    private const string KEY_PLAYER_NAME = "DASH_PLAYER_NAME";
+    [Header("Auto-resolved (Assets)")]
+    [SerializeField] private TurretData turretData;
 
     private Vector2 scrollPos;
     private GUIStyle headerStyle;
@@ -35,17 +29,12 @@ public class GameDashboard : EditorWindow
     // This runs when you open the window OR when you hit Play
     private void OnEnable()
     {
-        // 1. Recover Turret Data (Easy, it's an asset)
-        if (turretData == null)
-        {
-            string[] guids = AssetDatabase.FindAssets("t:TurretData");
-            if (guids.Length > 0)
-                turretData = AssetDatabase.LoadAssetAtPath<TurretData>(AssetDatabase.GUIDToAssetPath(guids[0]));
-        }
-
-        // 2. Recover Scene Objects using the Names we saved
-        RestoreReferences();
+        TryAutoResolveAll();
     }
+
+    private void OnFocus() => TryAutoResolveAll();
+    private void OnHierarchyChange() => TryAutoResolveAll();
+    private void OnProjectChange() => TryAutoResolveAll();
 
     void OnGUI()
     {
@@ -53,41 +42,24 @@ public class GameDashboard : EditorWindow
         scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
 
         // =========================================================
-        // SECTION 1: REFERENCES (Smart Persistence)
+        // SECTION 1: REFERENCES (Auto Resolve)
         // =========================================================
         GUILayout.Label("SETUP REFERENCES", headerStyle);
-        EditorGUILayout.HelpBox("Drag objects here once. The tool will remember them by Name.", MessageType.None);
+        EditorGUILayout.HelpBox("This dashboard auto-finds objects in loaded scenes / play mode. If something is missing, open a gameplay scene (World_1/World_2/Hub) or enter Play mode.", MessageType.Info);
 
-        // --- GAME MANAGER ---
-        EditorGUI.BeginChangeCheck();
-        gameManagerObj = (GameObject)EditorGUILayout.ObjectField("Game Manager", gameManagerObj, typeof(GameObject), true);
-        if (EditorGUI.EndChangeCheck() && gameManagerObj != null)
+        using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
-            // If user dragged something new, save its NAME
-            EditorPrefs.SetString(KEY_GM_NAME, gameManagerObj.name);
+            EditorGUILayout.LabelField("GameManager", gameManager != null ? gameManager.gameObject.name : "(not found)");
+            EditorGUILayout.LabelField("EnemyDirector", enemyDirector != null ? enemyDirector.gameObject.name : "(not found)");
+            EditorGUILayout.LabelField("Player Controller", playerController != null ? playerController.gameObject.name : "(not found)");
+            EditorGUILayout.LabelField("Player Health", playerHealth != null ? playerHealth.gameObject.name : "(not found)");
+            EditorGUILayout.LabelField("Player Garbage", playerGarbage != null ? playerGarbage.gameObject.name : "(not found)");
         }
 
-        // --- LEVEL MANAGER ---
-        EditorGUI.BeginChangeCheck();
-        levelManagersObj = (GameObject)EditorGUILayout.ObjectField("Level Managers", levelManagersObj, typeof(GameObject), true);
-        if (EditorGUI.EndChangeCheck() && levelManagersObj != null)
-        {
-            EditorPrefs.SetString(KEY_LVL_NAME, levelManagersObj.name);
-        }
-
-        // --- PLAYER ---
-        // We use the Controller to determine the Player Object Name
-        EditorGUI.BeginChangeCheck();
-        playerController = (ThirdPersonController)EditorGUILayout.ObjectField("Player Controller", playerController, typeof(ThirdPersonController), true);
-        if (EditorGUI.EndChangeCheck() && playerController != null)
-        {
-            EditorPrefs.SetString(KEY_PLAYER_NAME, playerController.gameObject.name);
-            // Auto-grab health if controller is assigned
-            if (playerHealth == null) playerHealth = playerController.GetComponent<PlayerHealth>();
-        }
-
-        playerHealth = (PlayerHealth)EditorGUILayout.ObjectField("Player Health", playerHealth, typeof(PlayerHealth), true);
+        // TurretData is an asset; if multiple exist, allow manual pick.
         turretData = (TurretData)EditorGUILayout.ObjectField("Turret Data (SO)", turretData, typeof(TurretData), false);
+        if (GUILayout.Button("Re-scan TurretData assets"))
+            turretData = FindFirstAssetOfType<TurretData>();
 
         GUILayout.Space(10);
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
@@ -95,29 +67,29 @@ public class GameDashboard : EditorWindow
         // =========================================================
         // SECTION 2: SCENE CONTROLS
         // =========================================================
-        if (gameManagerObj != null || levelManagersObj != null)
+        if (gameManager != null || enemyDirector != null)
         {
             GUILayout.Label("SCENE TOGGLES", headerStyle);
 
             GUILayout.BeginHorizontal();
 
-            if (gameManagerObj != null)
+            if (gameManager != null)
             {
-                bool active = gameManagerObj.activeSelf;
+                bool active = gameManager.gameObject.activeSelf;
                 if (GUILayout.Button(active ? "Game Manager: ON" : "Game Manager: OFF"))
                 {
-                    Undo.RecordObject(gameManagerObj, "Toggle GM");
-                    gameManagerObj.SetActive(!active);
+                    Undo.RecordObject(gameManager.gameObject, "Toggle GameManager");
+                    gameManager.gameObject.SetActive(!active);
                 }
             }
 
-            if (levelManagersObj != null)
+            if (enemyDirector != null)
             {
-                bool active = levelManagersObj.activeSelf;
+                bool active = enemyDirector.gameObject.activeSelf;
                 if (GUILayout.Button(active ? "ENEMIES: ON" : "ENEMIES: OFF"))
                 {
-                    Undo.RecordObject(levelManagersObj, "Toggle Enemies");
-                    levelManagersObj.SetActive(!active);
+                    Undo.RecordObject(enemyDirector.gameObject, "Toggle EnemyDirector");
+                    enemyDirector.gameObject.SetActive(!active);
                 }
             }
 
@@ -128,26 +100,73 @@ public class GameDashboard : EditorWindow
         // =========================================================
         // SECTION 3: PLAYER STATS
         // =========================================================
-        if (playerController != null && playerHealth != null)
+        if (playerController != null || playerHealth != null || playerGarbage != null)
         {
             GUILayout.Space(10);
             GUILayout.Label("PLAYER SETTINGS", headerStyle);
 
-            playerController.MoveSpeed = EditorGUILayout.Slider("Walk Speed", playerController.MoveSpeed, 0f, 20f);
-            playerController.SprintSpeed = EditorGUILayout.Slider("Sprint Speed", playerController.SprintSpeed, playerController.MoveSpeed, 30f);
-
-            GUILayout.Space(5);
-            string[] options = new string[] { "Gamepad Mode", "Mouse Mode" };
-            int selectedIndex = playerController.UseMouseRotation ? 1 : 0;
-            int newIndex = GUILayout.Toolbar(selectedIndex, options, GUILayout.Height(25));
-            if (newIndex != selectedIndex)
+            if (playerController != null)
             {
-                playerController.UseMouseRotation = (newIndex == 1);
-                EditorUtility.SetDirty(playerController);
+                Undo.RecordObject(playerController, "Change Player Movement");
+                playerController.MoveSpeed = EditorGUILayout.Slider("Walk Speed", playerController.MoveSpeed, 0f, 20f);
+                playerController.SprintSpeed = EditorGUILayout.Slider("Sprint Speed", playerController.SprintSpeed, playerController.MoveSpeed, 30f);
+
+                GUILayout.Space(5);
+                string[] options = new string[] { "Gamepad Mode", "Mouse Mode" };
+                int selectedIndex = playerController.UseMouseRotation ? 1 : 0;
+                int newIndex = GUILayout.Toolbar(selectedIndex, options, GUILayout.Height(25));
+                if (newIndex != selectedIndex)
+                {
+                    playerController.UseMouseRotation = (newIndex == 1);
+                    EditorUtility.SetDirty(playerController);
+                }
             }
 
-            GUILayout.Space(5);
-            playerHealth.maxHealth = EditorGUILayout.FloatField("Max HP", playerHealth.maxHealth);
+            if (playerHealth != null)
+            {
+                Undo.RecordObject(playerHealth, "Change Player Health");
+                playerHealth.maxHealth = EditorGUILayout.FloatField("Max HP", playerHealth.maxHealth);
+                if (GUI.changed) EditorUtility.SetDirty(playerHealth);
+            }
+
+            if (playerGarbage != null)
+            {
+                // maxCapacity is private; edit it via SerializedObject so we don't need to change runtime code.
+                SerializedObject so = new SerializedObject(playerGarbage);
+                SerializedProperty maxCapProp = so.FindProperty("maxCapacity");
+                if (maxCapProp != null)
+                {
+                    so.Update();
+                    EditorGUILayout.PropertyField(maxCapProp, new GUIContent("Max Capacity"));
+                    so.ApplyModifiedProperties();
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox("Could not find serialized field 'maxCapacity' on PlayerGarbageHandler.", MessageType.Warning);
+                }
+            }
+        }
+
+        // =========================================================
+        // SECTION 4: WORLD / LEVEL GOALS
+        // =========================================================
+        if (gameManager != null)
+        {
+            GUILayout.Space(10);
+            GUILayout.Label("WORLD SETTINGS", headerStyle);
+
+            SerializedObject so = new SerializedObject(gameManager);
+            SerializedProperty goalsProp = so.FindProperty("levelGoals");
+            if (goalsProp != null)
+            {
+                so.Update();
+                EditorGUILayout.PropertyField(goalsProp, new GUIContent("Level Goals (by rotation)"), true);
+                so.ApplyModifiedProperties();
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("Could not find serialized field 'levelGoals' on GameManager.", MessageType.Warning);
+            }
         }
 
         // =========================================================
@@ -170,50 +189,68 @@ public class GameDashboard : EditorWindow
         EditorGUILayout.EndScrollView();
     }
 
-    // --- HELPER TO RESTORE REFERENCES ---
-    void RestoreReferences()
+    private void TryAutoResolveAll()
     {
-        // 1. Load Game Manager
-        string gmName = EditorPrefs.GetString(KEY_GM_NAME, "");
-        if (!string.IsNullOrEmpty(gmName) && gameManagerObj == null)
+        if (gameManager == null) gameManager = FindFirstSceneObject<GameManager>();
+        if (enemyDirector == null) enemyDirector = FindFirstSceneObject<EnemyDirector>();
+
+        if (playerController == null) playerController = FindFirstSceneObject<ThirdPersonController>();
+        if (playerHealth == null) playerHealth = FindFirstSceneObject<PlayerHealth>();
+        if (playerGarbage == null) playerGarbage = FindFirstSceneObject<PlayerGarbageHandler>();
+
+        // If we found controller, preferentially grab related components from that same GO.
+        if (playerController != null)
         {
-            gameManagerObj = FindObjectEvenIfDisabled(gmName);
+            if (playerHealth == null) playerHealth = playerController.GetComponent<PlayerHealth>();
+            if (playerGarbage == null) playerGarbage = playerController.GetComponent<PlayerGarbageHandler>();
         }
 
-        // 2. Load Level Manager
-        string lvlName = EditorPrefs.GetString(KEY_LVL_NAME, "");
-        if (!string.IsNullOrEmpty(lvlName) && levelManagersObj == null)
-        {
-            levelManagersObj = FindObjectEvenIfDisabled(lvlName);
-        }
+        if (turretData == null) turretData = FindFirstAssetOfType<TurretData>();
 
-        // 3. Load Player
-        string playerName = EditorPrefs.GetString(KEY_PLAYER_NAME, "");
-        if (!string.IsNullOrEmpty(playerName) && playerController == null)
-        {
-            GameObject playerObj = FindObjectEvenIfDisabled(playerName);
-            if (playerObj != null)
-            {
-                playerController = playerObj.GetComponent<ThirdPersonController>();
-                playerHealth = playerObj.GetComponent<PlayerHealth>();
-            }
-        }
+        Repaint();
     }
 
-    // Needed because GameObject.Find() fails on disabled objects
-    GameObject FindObjectEvenIfDisabled(string name)
+    private static T FindFirstAssetOfType<T>() where T : UnityEngine.Object
     {
-        Scene currentScene = SceneManager.GetActiveScene();
-        GameObject[] rootObjects = currentScene.GetRootGameObjects();
+        string[] guids = AssetDatabase.FindAssets($"t:{typeof(T).Name}");
+        if (guids == null || guids.Length == 0) return null;
+        string path = AssetDatabase.GUIDToAssetPath(guids[0]);
+        return AssetDatabase.LoadAssetAtPath<T>(path);
+    }
 
-        foreach (GameObject obj in rootObjects)
+    /// <summary>
+    /// Finds the first instance of T that exists in a loaded scene (not a prefab/asset).
+    /// Works in Edit mode and Play mode, and includes inactive objects.
+    /// </summary>
+    private static T FindFirstSceneObject<T>() where T : UnityEngine.Object
+    {
+        // Resources.FindObjectsOfTypeAll works in Edit mode and includes inactive objects,
+        // but also returns prefab assets. Filter those out.
+        T[] all = Resources.FindObjectsOfTypeAll<T>();
+        if (all == null || all.Length == 0) return null;
+
+        for (int i = 0; i < all.Length; i++)
         {
-            if (obj.name == name) return obj;
+            T obj = all[i];
+            if (obj == null) continue;
+            if (EditorUtility.IsPersistent(obj)) continue; // prefab/asset on disk
 
-            // Check immediate children too (Common for Managers)
-            Transform result = obj.transform.Find(name);
-            if (result != null) return result.gameObject;
+            if (obj is Component c)
+            {
+                if (!c.gameObject.scene.IsValid()) continue;
+                return obj;
+            }
+
+            if (obj is GameObject go)
+            {
+                if (!go.scene.IsValid()) continue;
+                return obj;
+            }
+
+            // Fallback (should be rare for our types)
+            return obj;
         }
+
         return null;
     }
 }

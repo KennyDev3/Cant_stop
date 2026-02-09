@@ -51,8 +51,8 @@ public class GarbageReceptacle : MonoBehaviour
 
     private IEnumerator ProcessBundleRoutine(GarbageBundle bundle)
     {
-        int totalValue = bundle.GetTotalValue();
-        int valuePerPulse = Mathf.CeilToInt((float)totalValue / pulses);
+        int totalCapacity = bundle.GetTotalCapacity();
+        int capacityPerPulse = Mathf.CeilToInt((float)totalCapacity / pulses);
         float timePerPulse = totalProcessTime / pulses;
 
         for (int i = 1; i <= pulses; i++)
@@ -66,8 +66,8 @@ public class GarbageReceptacle : MonoBehaviour
             float targetSizeParams = 1f - progress;
 
             bundle.ShrinkToPercentage(targetSizeParams);
-            GivePlayerMoney(valuePerPulse);
-            SpawnFloatingText(valuePerPulse);
+            GivePlayerMoney(capacityPerPulse);
+            SpawnFloatingText(capacityPerPulse);
 
             // Audio 
             if (processingMoneySound != null)

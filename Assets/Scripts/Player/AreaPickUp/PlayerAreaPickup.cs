@@ -96,6 +96,14 @@ public class PlayerAreaPickup : MonoBehaviour
         {
             if (hit.TryGetComponent(out GarbageItem item))
             {
+                // In magnet mode, let the magnet system handle enemy loot garbage
+                if (GameManager.Instance != null &&
+                    GameManager.Instance.UseEnemyGarbageMagnetPickup &&
+                    item.UseMagnetPickup)
+                {
+                    continue;
+                }
+
                 if (_garbageHandler.IsOverencumbered) break;
                 if (_garbageHandler.TryInstantCollect(item)) collectedCount++;
             }
