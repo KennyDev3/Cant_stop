@@ -24,6 +24,11 @@ public class GameManager : MonoBehaviour
 
     public string HubSceneName => hubSceneName;
 
+    [Header("Garbage Pickup")]
+    [Tooltip("If true, enemy loot garbage that has useMagnetPickup enabled on its GarbageData will be auto-collected by a magnet radius around the player instead of only via the Q area-pickup.")]
+    [SerializeField] private bool useEnemyGarbageMagnetPickup = true;
+    public bool UseEnemyGarbageMagnetPickup => useEnemyGarbageMagnetPickup;
+
     [Header("Scene transition")]
     [Tooltip("Duration of fade out and fade in (seconds) for scene transitions.")]
     [SerializeField] private float sceneTransitionFadeDuration = 1f;
@@ -343,6 +348,7 @@ public class GameManager : MonoBehaviour
             if (sceneName == hubSceneName)
             {
                 FlushRunResourcesToHubBank();
+                _currentRun.Clear(); // Run ended: reset health, inventory, rotation, kill count, difficulty etc.; hub bank already updated
             }
             Debug.Log($"[RunState] Scene loaded. Before apply: Health={_currentRun.Player.Health} Money={_currentRun.Economy.Money} InventoryCount={_currentRun.Inventory.Items.Count} WaveCredits={_currentRun.Economy.WaveCredits} TrickleCredits={_currentRun.Economy.TrickleCredits} DiffStage={_currentRun.Difficulty.Stage}");
             ApplyRunStateToScene();

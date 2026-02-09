@@ -51,6 +51,7 @@ public class StartRunInteractable : MonoBehaviour, IInteractable
             return;
         }
 
+        GameManager.Instance.StartRun();
         GameManager.Instance.RequestScene(SceneRequest.ToScene(sceneName, false));
     }
 

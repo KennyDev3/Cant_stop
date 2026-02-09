@@ -4,7 +4,7 @@ using UnityEngine;
 public class DisposableRewardLogic : MonoBehaviour
 {
     [Header("Config")]
-    [SerializeField] private int cost = 100;
+    [SerializeField] private int cost = 50;
     [SerializeField] private LootTableSO lootTable;
     [SerializeField] private Transform spawnPoint;
 

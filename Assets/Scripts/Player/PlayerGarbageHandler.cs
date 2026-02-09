@@ -312,7 +312,6 @@ public class PlayerGarbageHandler : MonoBehaviour, IRunStateContributor
         {
             dataToAdd = ScriptableObject.CreateInstance<GarbageData>();
             dataToAdd.itemName = "Debug Trash";
-            dataToAdd.value = 10;
             dataToAdd.capacityCost = 2;
             dataToAdd.garbageTier = 1;
         }

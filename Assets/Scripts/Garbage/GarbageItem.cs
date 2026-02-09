@@ -1,4 +1,4 @@
-﻿using StarterAssets;
+using StarterAssets;
 using System;
 using System.Collections;
 using TMPro;
@@ -44,11 +44,26 @@ public class GarbageItem : MonoBehaviour, IInteractable
     [Header("UI Effects")]
     [SerializeField] private GameObject popupTextPrefab;
 
+    [Header("Magnet Pickup")]
+    [Tooltip("Base speed used when this item is being magnetized toward the player.")]
+    [SerializeField] private float magnetBaseSpeed = 2.5f;
+    [Tooltip("Maximum speed when very close to the player.")]
+    [SerializeField] private float magnetMaxSpeed = 7f;
+    [Tooltip("Approximate distance at which the magnet reaches max speed (used for simple lerp).")]
+    [SerializeField] private float magnetMaxSpeedDistance = 8f;
+    [Tooltip("Distance from the player at which the item is considered collected while magnetized.")]
+    [SerializeField] private float magnetCollectRadius = 0.8f;
+
     private int _originalLayer;
     private int _interactableLayerIndex;
     private GameObject _infoUIInstance;
     private TextMeshProUGUI _infoUIText;
     private Renderer _renderer;
+
+    // Magnet state
+    private bool _isMagnetized = false;
+    private Transform _magnetTarget;
+    private PlayerGarbageHandler _magnetHandler;
 
     private void Awake()
     {
@@ -90,9 +105,89 @@ public class GarbageItem : MonoBehaviour, IInteractable
             if (targetOutline != null)
             {
                 targetOutline.enabled = true;
-                targetOutline.OutlineColor = Color.white;
+                targetOutline.OutlineColor = GetDefaultOutlineColor();
             }
             this.enabled = true;
+        }
+    }
+
+    private Color GetDefaultOutlineColor() => UseMagnetPickup ? Color.red : Color.white;
+
+    private void Update()
+    {
+        HandleMagnetMovement();
+    }
+
+    /// <summary>
+    /// True if this item's GarbageData is configured to use magnet pickup.
+    /// </summary>
+    public bool UseMagnetPickup => garbageData != null && garbageData.useMagnetPickup;
+
+    /// <summary>
+    /// Called by the player's magnet pickup zone when the player enters range.
+    /// Starts homing this item toward the player.
+    /// </summary>
+    public void StartMagnet(Transform target, PlayerGarbageHandler handler)
+    {
+        if (target == null || handler == null) return;
+        if (!UseMagnetPickup) return;
+        if (_isMagnetized) return;
+
+        _magnetTarget = target;
+        _magnetHandler = handler;
+        _isMagnetized = true;
+
+        // Disable normal interaction visuals/collider so we don't double-collect.
+        if (interactionCollider != null) interactionCollider.enabled = false;
+        if (targetOutline != null) targetOutline.enabled = false;
+        if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
+    }
+
+    private void HandleMagnetMovement()
+    {
+        if (!_isMagnetized) return;
+
+        if (_magnetTarget == null || _magnetHandler == null)
+        {
+            _isMagnetized = false;
+            _magnetTarget = null;
+            _magnetHandler = null;
+            return;
+        }
+
+        // If player is overencumbered, stop magnet behavior so we don't keep trying to pull items.
+        if (_magnetHandler.IsOverencumbered)
+        {
+            _isMagnetized = false;
+            _magnetTarget = null;
+            _magnetHandler = null;
+            return;
+        }
+
+        Vector3 toPlayer = _magnetTarget.position - transform.position;
+        float distance = toPlayer.magnitude;
+
+        if (distance <= magnetCollectRadius)
+        {
+            if (_magnetHandler.TryInstantCollect(this))
+            {
+                _isMagnetized = false;
+                _magnetTarget = null;
+                _magnetHandler = null;
+                Destroy(gameObject);
+            }
+            return;
+        }
+
+        if (distance > 0.001f)
+        {
+            Vector3 dir = toPlayer / distance;
+
+            // Simple speed curve: slower far away, snappier near the player.
+            float t = Mathf.Clamp01(1f - (distance / Mathf.Max(0.01f, magnetMaxSpeedDistance)));
+            float speed = Mathf.Lerp(magnetBaseSpeed, magnetMaxSpeed, t);
+
+            transform.position += dir * speed * Time.deltaTime;
         }
     }
 
@@ -107,7 +202,11 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
         if (interactionCollider != null) interactionCollider.enabled = true;
 
-       
+        if (targetOutline != null)
+        {
+            targetOutline.enabled = true;
+            targetOutline.OutlineColor = GetDefaultOutlineColor();
+        }
 
         this.enabled = true;
     }
@@ -216,8 +315,7 @@ public class GarbageItem : MonoBehaviour, IInteractable
         if (garbageData != null && _infoUIText != null)
         {
             _infoUIText.text =
-                $"Value: ${garbageData.value}\n" +
-                $"Weight: {garbageData.capacityCost}\n" +
+                $"Capacity: {garbageData.capacityCost}\n" +
                 $"Tier: {garbageData.garbageTier}";
         }
     }
@@ -232,7 +330,7 @@ public class GarbageItem : MonoBehaviour, IInteractable
             }
             else
             {
-                targetOutline.OutlineColor = Color.white;
+                targetOutline.OutlineColor = GetDefaultOutlineColor();
                 targetOutline.enabled = true;
             }
         }
