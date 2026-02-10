@@ -19,6 +19,11 @@ public class AdvancedDisposalArea : MonoBehaviour
     [SerializeField] private float totalProcessTime = 2.0f;
     [SerializeField] private int pulses = 4;
 
+    [Header("Area Geometry")]
+    [SerializeField] private float outerHitRadius = 2.0f;
+    [SerializeField] private float outerHeightTolerance = 0.3f;
+    [SerializeField] private float trackingRadius = 3.0f;
+
     [Header("Refund / Change System")]
     [SerializeField] private GameObject refundProjectilePrefab;
 
@@ -83,8 +88,8 @@ public class AdvancedDisposalArea : MonoBehaviour
         GarbageBundle bundle = other.GetComponent<GarbageBundle>();
         if (bundle != null)
         {
-            Rigidbody rb = bundle.GetComponent<Rigidbody>();
-            if (rb != null && rb.linearVelocity.y > 0.1f) _trackedBundles.Remove(bundle);
+            // Intentionally left blank: tracking is managed in MonitorMovement
+            // based on distance from the disposal area's center.
         }
     }
 
@@ -94,10 +99,43 @@ public class AdvancedDisposalArea : MonoBehaviour
         float stillTimer = 0f;
         while (bundle != null && _trackedBundles.Contains(bundle))
         {
-            bool isMovingSlowly = rb.linearVelocity.magnitude <= stoppedVelocityThreshold;
-            bool isNotFalling = Mathf.Abs(rb.linearVelocity.y) < 0.02f;
-            if (isMovingSlowly && isNotFalling) stillTimer += Time.deltaTime;
-            else stillTimer = 0f;
+            if (bullseyeRing == null)
+            {
+                yield break;
+            }
+
+            Vector3 center = bullseyeRing.transform.position;
+            Vector3 pos = bundle.transform.position;
+            float distToCenter = Vector2.Distance(
+                new Vector2(pos.x, pos.z),
+                new Vector2(center.x, center.z)
+            );
+
+            // Stop tracking once the bundle is clearly far away from the disposal area.
+            if (distToCenter > trackingRadius)
+            {
+                _trackedBundles.Remove(bundle);
+                yield break;
+            }
+
+            // Separate horizontal and vertical motion; be more forgiving to tiny jitters.
+            Vector2 horizontalVel = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            float horizontalSpeed = horizontalVel.magnitude;
+            float verticalSpeed = rb.linearVelocity.y;
+
+            bool isMovingSlowlyHorizontally = horizontalSpeed <= stoppedVelocityThreshold;
+            bool isNotFallingFast = verticalSpeed > -0.2f && verticalSpeed < 0.2f;
+
+            if (isMovingSlowlyHorizontally && isNotFallingFast)
+            {
+                // Fully still: accumulate time.
+                stillTimer += Time.deltaTime;
+            }
+            else
+            {
+                // Soft decay instead of hard reset so small bumps don't completely restart.
+                stillTimer = Mathf.Max(0f, stillTimer - Time.deltaTime * 2f);
+            }
 
             if (stillTimer >= requiredStillTime)
             {
@@ -114,9 +152,17 @@ public class AdvancedDisposalArea : MonoBehaviour
 
         Vector3 bundlePos = bundle.transform.position;
         Vector3 bullseyeCenter = bullseyeRing.transform.position;
-        float distToCenter = Vector2.Distance(new Vector2(bundlePos.x, bundlePos.z), new Vector2(bullseyeCenter.x, bullseyeCenter.z));
+        float distToCenter = Vector2.Distance(
+            new Vector2(bundlePos.x, bundlePos.z),
+            new Vector2(bullseyeCenter.x, bullseyeCenter.z)
+        );
         bool isStuckOnRim = (bundlePos.y - bullseyeCenter.y) > rimHeightThreshold;
         bool isInsideBullseyeZone = distToCenter <= bullseyeRadius;
+
+        // General outer-area hit: inside a slightly padded radius and near the ring plane.
+        bool isInsideOuterZone =
+            distToCenter <= outerHitRadius &&
+            Mathf.Abs(bundlePos.y - bullseyeCenter.y) <= outerHeightTolerance;
 
         bool validHit = false;
 
@@ -127,7 +173,8 @@ public class AdvancedDisposalArea : MonoBehaviour
             validHit = true;
             StartCoroutine(SinkObject(bullseyeRing));
         }
-        else if (outerRing.GetComponent<Collider>().bounds.Contains(bundlePos) || isInsideBullseyeZone)
+        // General hit: either inside bullseye zone or within our outer area tolerance.
+        else if (isInsideOuterZone || isInsideBullseyeZone)
         {
             validHit = true;
             if (!_bullseyeHitSucceeded)
@@ -143,7 +190,25 @@ public class AdvancedDisposalArea : MonoBehaviour
             SoundManager.Instance.Play(garbageAcceptedSound, transform.position);
             StartCoroutine(ProcessBundlePulsed(bundle));
         }
-        else { StartCoroutine(MonitorMovement(bundle)); }
+        else
+        {
+            StartCoroutine(MonitorMovement(bundle));
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (bullseyeRing == null) return;
+
+        Vector3 center = bullseyeRing.transform.position;
+
+        // Outer hit radius (where we consider normal hits valid)
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(center, outerHitRadius);
+
+        // Tracking radius (beyond this we stop tracking bundles)
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(center, trackingRadius);
     }
 
     private IEnumerator ProcessBundlePulsed(GarbageBundle bundle)
