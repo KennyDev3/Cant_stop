@@ -170,7 +170,7 @@ public class GameDashboard : EditorWindow
         }
 
         // =========================================================
-        // SECTION 4: TURRET STATS
+        // SECTION 5: TURRET STATS
         // =========================================================
         if (turretData != null)
         {
