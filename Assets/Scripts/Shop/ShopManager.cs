@@ -1,159 +1,167 @@
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+using System.Collections.Generic;
 using StarterAssets;
-using System.Collections.Generic; // Added for list management
 
+/// <summary>
+/// Hub upgrade panel controller: one panel showing both Parry and Dash trees.
+/// Place on the upgrade panel GameObject. Assign Parry/Dash upgrade SOs, content parents, node prefab, and resource display.
+/// </summary>
 public class ShopManager : MonoBehaviour
 {
-    [Header("Upgrade System Setup")]
-    [Tooltip("Array of all available ScriptableObject upgrade definitions.")]
-    [SerializeField] private UpgradeDefinition[] availableUpgrades;
-    [Tooltip("The parent transform where upgrade items will be instantiated.")]
-    [SerializeField] private Transform upgradeContentParent;
-    [Tooltip("The template prefab for a single upgrade item (must have ShopItemUI.cs).")]
-    [SerializeField] private GameObject upgradeTemplatePrefab;
+    [Header("Tree data")]
+    [Tooltip("Parry tree upgrades in order (Unlock, then upgrade 1, then upgrade 2).")]
+    [SerializeField] private List<HubUpgradeSO> parryUpgrades = new List<HubUpgradeSO>();
+    [Tooltip("Dash tree upgrades in order (Unlock, then upgrade 1, then upgrade 2).")]
+    [SerializeField] private List<HubUpgradeSO> dashUpgrades = new List<HubUpgradeSO>();
 
-    [Header("UI References")]
-    [Tooltip("The root Panel of the Shop UI.")]
+    [Header("Layout")]
+    [Tooltip("Parent transform for Parry tree nodes (instantiated here).")]
+    [SerializeField] private Transform parryContentParent;
+    [Tooltip("Parent transform for Dash tree nodes (instantiated here).")]
+    [SerializeField] private Transform dashContentParent;
+    [Tooltip("Prefab with HubUpgradeNodeUI for one upgrade row.")]
+    [SerializeField] private GameObject nodePrefab;
+
+    [Header("Panel")]
+    [Tooltip("Root panel GameObject to show/hide. If null, uses this GameObject.")]
     [SerializeField] private GameObject shopPanel;
 
-    [Header("Auto-Close Settings")]
-    [Tooltip("The player's UpgradeHandler for purchase logic.")]
-    [SerializeField] private UpgradeHandler upgradeHandler;
+    [Header("Resource display")]
+    [Tooltip("Hub bank counts (e.g. Wood, Gold, Iron).")]
+    [SerializeField] private List<ResourceBankSlot> resourceBankSlots = new List<ResourceBankSlot>();
 
-    // Public property for other scripts to check the shop state
-    public bool IsShopOpen => _isShopOpen;
-
-    private Transform _playerTransform;
-    private bool _isShopOpen = false;
-
-    private PlayerInteractor _playerInteractor;
-    private StarterAssetsInputs _input;
-
-    // Keep track of instantiated UI items to manage refresh
-    private List<ShopItemUI> _instantiatedItems = new List<ShopItemUI>();
-
-    void Awake()
+    [System.Serializable]
+    public struct ResourceBankSlot
     {
-        // ... (Player finding logic remains) ...
+        public ResourceSO resourceType;
+        public TextMeshProUGUI countText;
+    }
+
+    [Header("Close")]
+    [Tooltip("Optional button that closes the panel when clicked.")]
+    [SerializeField] private Button closeButton;
+
+    public bool IsShopOpen => _isPanelOpen;
+
+    private bool _isPanelOpen;
+    private StarterAssetsInputs _input;
+    private readonly List<HubUpgradeNodeUI> _parryNodes = new List<HubUpgradeNodeUI>();
+    private readonly List<HubUpgradeNodeUI> _dashNodes = new List<HubUpgradeNodeUI>();
+
+    private void Awake()
+    {
+        if (shopPanel == null) shopPanel = gameObject;
+
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
-        {
-            _playerTransform = player.transform;
-            _playerInteractor = player.GetComponent<PlayerInteractor>();
             _input = player.GetComponent<StarterAssetsInputs>();
-            // Get UpgradeHandler from Player
-            upgradeHandler = player.GetComponent<UpgradeHandler>();
-        }
-
-        if (shopPanel == null)
-        {
-            Debug.LogError("ShopManager::shopPanel is unassigned. Please assign the UI Panel in the Inspector.");
-        }
-        if (upgradeContentParent == null)
-        {
-            Debug.LogError("ShopManager::upgradeContentParent is unassigned. Cannot populate upgrades.");
-        }
-        if (upgradeTemplatePrefab == null)
-        {
-            Debug.LogError("ShopManager::upgradeTemplatePrefab is unassigned. Cannot populate upgrades.");
-        }
 
         if (shopPanel != null)
-        {
             shopPanel.SetActive(false);
+
+        if (closeButton != null)
+            closeButton.onClick.AddListener(CloseShop);
+    }
+
+    private void OnEnable()
+    {
+        _isPanelOpen = true;
+        if (_parryNodes.Count == 0 && _dashNodes.Count == 0)
+            PopulateTreesOnce();
+        RefreshAll();
+    }
+
+    private void OnDisable()
+    {
+        _isPanelOpen = false;
+    }
+
+    private void Update()
+    {
+        if (!_isPanelOpen) return;
+        if (_input != null && _input.interact)
+        {
+            CloseShop();
+            _input.interact = false;
         }
     }
 
-    void Update()
+    private void PopulateTreesOnce()
     {
-        // Only check for input closing if the shop is open. Distance is checked by PlayerInteractor.
-        if (_isShopOpen)
+        if (nodePrefab == null || parryContentParent == null && dashContentParent == null) return;
+
+        ClearChildren(parryContentParent);
+        ClearChildren(dashContentParent);
+        _parryNodes.Clear();
+        _dashNodes.Clear();
+
+        PopulateTree(parryUpgrades, parryContentParent, _parryNodes);
+        PopulateTree(dashUpgrades, dashContentParent, _dashNodes);
+    }
+
+    private void PopulateTree(List<HubUpgradeSO> upgrades, Transform parent, List<HubUpgradeNodeUI> outNodes)
+    {
+        if (parent == null || nodePrefab == null || upgrades == null) return;
+        foreach (var upgrade in upgrades)
         {
-            // Handle closing with 'E'
-            if (_input != null && _input.interact)
+            if (upgrade == null) continue;
+            GameObject go = Instantiate(nodePrefab, parent);
+            if (go.TryGetComponent(out HubUpgradeNodeUI node))
             {
-                CloseShop();
-                _input.interact = false;
-                return;
+                node.Setup(upgrade);
+                outNodes.Add(node);
             }
         }
     }
 
+    private static void ClearChildren(Transform parent)
+    {
+        if (parent == null) return;
+        for (int i = parent.childCount - 1; i >= 0; i--)
+            Destroy(parent.GetChild(i).gameObject);
+    }
+
+    /// <summary>
+    /// Call when panel is shown or after a purchase to refresh all nodes and resource display.
+    /// </summary>
+    public void RefreshAll()
+    {
+        RefreshResourceDisplay();
+        foreach (var n in _parryNodes) n.Refresh();
+        foreach (var n in _dashNodes) n.Refresh();
+    }
+
+    private void RefreshResourceDisplay()
+    {
+        if (GameManager.Instance == null || resourceBankSlots == null) return;
+        foreach (var slot in resourceBankSlots)
+        {
+            if (slot.resourceType == null || slot.countText == null) continue;
+            int count = GameManager.Instance.GetHubBankCount(slot.resourceType);
+            string label = string.IsNullOrEmpty(slot.resourceType.displayName) ? slot.resourceType.name : slot.resourceType.displayName;
+            slot.countText.text = $"{label}: {count}";
+        }
+    }
+
+    /// <summary>Show the panel and free cursor. Called by ShopTerminal or from code.</summary>
     public void OpenShop(Vector3 shopPosition)
     {
-        if (_isShopOpen) return;
-
-        _isShopOpen = true;
-
-        if (shopPanel != null)
-        {
-            shopPanel.SetActive(true);
-        }
-
-        // Populate the shop items when opening
-        PopulateUpgrades();
-
-        // CRITICAL CONSUMPTION
-        if (_input != null)
-        {
-            _input.interact = false;
-        }
-
-        // 1. FREE THE MOUSE CURSOR
-        Cursor.lockState = CursorLockMode.None;
+        if (shopPanel == null) return;
+        shopPanel.SetActive(true);
         Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+        if (_input != null) _input.interact = false;
     }
 
     public void CloseShop()
     {
-        if (!_isShopOpen) return;
-
-        _isShopOpen = false;
-
+        if (!_isPanelOpen) return;
+        _isPanelOpen = false;
         if (shopPanel != null)
-        {
             shopPanel.SetActive(false);
-        }
-
-        // 1. LOCK THE MOUSE CURSOR
-        Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-    }
-
-    private void PopulateUpgrades()
-    {
-        // Clear old items
-        foreach (Transform child in upgradeContentParent)
-        {
-            Destroy(child.gameObject);
-        }
-        _instantiatedItems.Clear();
-
-        if (upgradeHandler == null || upgradeTemplatePrefab == null || upgradeContentParent == null)
-        {
-            Debug.LogError("Shop components missing. Cannot populate shop.");
-            return;
-        }
-
-        // Instantiate new items for each definition
-        foreach (var definition in availableUpgrades)
-        {
-            GameObject itemObject = Instantiate(upgradeTemplatePrefab, upgradeContentParent);
-            if (itemObject.TryGetComponent(out ShopItemUI itemUI))
-            {
-                itemUI.Setup(definition, upgradeHandler);
-                _instantiatedItems.Add(itemUI);
-            }
-        }
-    }
-
-    public void RefreshUpgradeUI()
-    {
-        // Called by UpgradeHandler after a successful purchase
-        foreach (var itemUI in _instantiatedItems)
-        {
-            itemUI.RefreshUI();
-        }
-        // Future: Could also refresh currency display here
+        Cursor.lockState = CursorLockMode.Locked;
     }
 }

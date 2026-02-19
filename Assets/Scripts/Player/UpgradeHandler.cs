@@ -88,7 +88,7 @@ public class UpgradeHandler : MonoBehaviour
         ShopManager shopManager = FindFirstObjectByType<ShopManager>();
         if (shopManager != null)
         {
-            shopManager.RefreshUpgradeUI();
+            //shopManager.RefreshUpgradeUI();
         }
 
         return true;

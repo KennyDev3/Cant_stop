@@ -81,10 +81,14 @@ public class Projectile : MonoBehaviour, IParriable
 
         _isParried = true;
 
+        // Hub upgrade: +100% damage on returned projectile
+        if (GameManager.Instance != null && GameManager.Instance.IsHubUpgradeUnlocked(HubUpgradeKeys.ParryReturnDamage))
+            damage *= 2f;
+
         // Flip direction 
         transform.forward = -transform.forward;
 
-        // Speed up slightly for 
+        // Speed up slightly
         moveSpeed *= 2f;
 
         // Extend lifetime so it doesn't vanish mid-air
