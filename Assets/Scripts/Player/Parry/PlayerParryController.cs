@@ -45,6 +45,16 @@ public class PlayerParryController : MonoBehaviour
 
     private void Start()
     {
+        // Hub upgrade: parry is off until unlocked
+        if (GameManager.Instance != null && !GameManager.Instance.IsHubUpgradeUnlocked(HubUpgradeKeys.ParryUnlock))
+        {
+            enabled = false;
+            if (_parryShieldVisual != null) _parryShieldVisual.SetActive(false);
+            var shield = GetComponentInChildren<ParryShield>(true);
+            if (shield != null) shield.enabled = false;
+            return;
+        }
+
         // Ensure shield is off at start
         if (_parryShieldVisual != null) _parryShieldVisual.SetActive(false);
     }
@@ -125,6 +135,17 @@ public class PlayerParryController : MonoBehaviour
 
             StartCoroutine(InvincibilityRoutine());
             OnParrySuccess?.Invoke();
+
+            // Hub upgrade: turret +100% damage for 10s on successful parry
+            if (GameManager.Instance != null && GameManager.Instance.IsHubUpgradeUnlocked(HubUpgradeKeys.ParryTurretBuff))
+            {
+                var turret = FindFirstObjectByType<TruckTurret>();
+                if (turret != null)
+                {
+                    turret.ApplyTempDamageBuff(2f, 10f);
+                    Debug.Log("[Parry] Stronger turret shots for 10 seconds.");
+                }
+            }
         }
 
     private IEnumerator InvincibilityRoutine()

@@ -53,6 +53,16 @@ public class GameManager : MonoBehaviour
 
     private Dictionary<ResourceSO, int> _hubBank = new Dictionary<ResourceSO, int>();
 
+    [Header("Hub upgrade unlock state")]
+    [Tooltip("Persistent across scenes. Never cleared when entering Hub or loading levels. Cleared only explicitly (e.g. new game).")]
+    private HubUnlockState _hubUnlocks = new HubUnlockState();
+
+    [Header("Hub upgrade debug")]
+    [Tooltip("When true, in Editor these upgrade IDs are unlocked on Awake (no cost). Use to test levels with specific upgrades.")]
+    [SerializeField] private bool applyDebugUnlocksInEditor = false;
+    [Tooltip("Upgrade IDs to force-unlock when applyDebugUnlocksInEditor is true. Use HubUpgradeKeys constants.")]
+    [SerializeField] private List<string> debugUnlockUpgradeIds = new List<string>();
+
     // Persistence variables
    
     public int CurrentRotation => _currentRun.Meta.CurrentRotation;
@@ -119,6 +129,7 @@ public class GameManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
 
         LoadDebugHubBankIntoBank();
+        ApplyDebugHubUnlocksIfNeeded();
 
         var overlayGo = new GameObject("SceneFadeOverlay");
         overlayGo.transform.SetParent(transform);
@@ -479,6 +490,65 @@ public class GameManager : MonoBehaviour
     {
         if (type == null) return 0;
         return _hubBank.TryGetValue(type, out int c) ? c : 0;
+    }
+
+    /// <summary>Deduct amount from hub bank for the given resource. Call only when CanAfford has been checked. Updates debug list.</summary>
+    private void SpendFromHubBank(ResourceSO type, int amount)
+    {
+        if (type == null || amount <= 0) return;
+        if (!_hubBank.ContainsKey(type)) return;
+        _hubBank[type] = Mathf.Max(0, _hubBank[type] - amount);
+        UpdateDebugHubBank();
+    }
+
+    // --- Hub upgrade unlock API (persistent; not cleared on scene change) ---
+
+    public bool IsHubUpgradeUnlocked(string upgradeId) => _hubUnlocks.IsUnlocked(upgradeId);
+
+    /// <summary>Mark an upgrade as purchased (no cost deduction). Use for debug or after TryPurchaseHubUpgrade has deducted cost.</summary>
+    public void UnlockHubUpgrade(string upgradeId) => _hubUnlocks.Unlock(upgradeId);
+
+    public bool CanAffordHubUpgrade(HubUpgradeSO upgrade)
+    {
+        if (upgrade == null || upgrade.cost == null) return false;
+        foreach (var entry in upgrade.cost)
+        {
+            if (entry.resource == null) continue;
+            if (GetHubBankCount(entry.resource) < entry.amount) return false;
+        }
+        return true;
+    }
+
+    /// <summary>If prerequisite met, can afford, and not already owned: deducts cost from hub bank and unlocks. Returns true if purchased.</summary>
+    public bool TryPurchaseHubUpgrade(HubUpgradeSO upgrade)
+    {
+        if (upgrade == null) return false;
+        if (_hubUnlocks.IsUnlocked(upgrade.id)) return false;
+        if (!string.IsNullOrEmpty(upgrade.prerequisiteUpgradeId) && !_hubUnlocks.IsUnlocked(upgrade.prerequisiteUpgradeId))
+            return false;
+        if (!CanAffordHubUpgrade(upgrade)) return false;
+
+        foreach (var entry in upgrade.cost)
+        {
+            if (entry.resource == null || entry.amount <= 0) continue;
+            SpendFromHubBank(entry.resource, entry.amount);
+        }
+        _hubUnlocks.Unlock(upgrade.id);
+        return true;
+    }
+
+    private void ApplyDebugHubUnlocksIfNeeded()
+    {
+#if UNITY_EDITOR
+        if (!applyDebugUnlocksInEditor || debugUnlockUpgradeIds == null) return;
+        foreach (string id in debugUnlockUpgradeIds)
+        {
+            if (string.IsNullOrEmpty(id)) continue;
+            _hubUnlocks.Unlock(id);
+        }
+        if (debugUnlockUpgradeIds.Count > 0)
+            Debug.Log($"[GameManager] Debug: unlocked {debugUnlockUpgradeIds.Count} hub upgrade(s) in Editor.");
+#endif
     }
 
     /// <summary>When entering Hub with run state, add run resources to hub bank and clear run resources so ApplyRunState gives player 0/0/0.</summary>

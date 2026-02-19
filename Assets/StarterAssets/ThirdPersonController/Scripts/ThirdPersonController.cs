@@ -346,6 +346,10 @@ namespace StarterAssets
 
         private void HandleDashInput()
         {
+            // Hub upgrade: dash is off until unlocked
+            if (GameManager.Instance != null && !GameManager.Instance.IsHubUpgradeUnlocked(HubUpgradeKeys.DashUnlock))
+                return;
+
             if (_input.jump)
             {
                 _input.jump = false;

@@ -45,6 +45,12 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
     private Collider currentTargetCollider;
     private float fireTimer;
 
+    [Header("Temporary buffs (hub upgrades)")]
+    private float _tempDamageMultiplier = 1f;
+    private float _tempDamageMultiplierUntil = 0f;
+    private float _tempFireRateMultiplier = 1f;
+    private float _tempFireRateMultiplierUntil = 0f;
+
     [Header("Turret Audio")]
     [SerializeField] SoundDef turretOneShot;
 
@@ -104,6 +110,11 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
 
     void Update()
     {
+        if (Time.time >= _tempDamageMultiplierUntil)
+            _tempDamageMultiplier = 1f;
+        if (Time.time >= _tempFireRateMultiplierUntil)
+            _tempFireRateMultiplier = 1f;
+
         fireTimer += Time.deltaTime;
 
         // 1. Check for Target
@@ -241,6 +252,7 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
     private void TryShoot()
     {
         float shotsPerSecond = _stats ? _stats.GetStat(StatType.FireRate) : turretData.fireRate;
+        shotsPerSecond *= _tempFireRateMultiplier;
 
         if (shotsPerSecond <= 0.001f) shotsPerSecond = 0.001f; // Prevent dividing by 0
         float timeBetweenShots = 1.0f / shotsPerSecond;
@@ -267,6 +279,20 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
 
 
         }
+    }
+
+    /// <summary>Hub upgrade: parry can trigger this. Turret damage is multiplied for the given duration.</summary>
+    public void ApplyTempDamageBuff(float multiplier, float duration)
+    {
+        _tempDamageMultiplier = multiplier;
+        _tempDamageMultiplierUntil = Time.time + duration;
+    }
+
+    /// <summary>Hub upgrade: dash can trigger this. Turret fire rate is multiplied for the given duration.</summary>
+    public void ApplyTempFireRateBuff(float multiplier, float duration)
+    {
+        _tempFireRateMultiplier = multiplier;
+        _tempFireRateMultiplierUntil = Time.time + duration;
     }
 
     public void OnStatsRecalculated()
@@ -318,8 +344,9 @@ public class TruckTurret : MonoBehaviour, IStatReceiver
             EnemyHealth enemyHealth = hit.collider.GetComponent<EnemyHealth>();
             if (enemyHealth != null)
             {
-                enemyHealth.TakeDamage(_currentDamage, deviatedPoint);
-                Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{_currentDamage} damage</color>. Hit deviated by up to {maxHitDeviation:F2}m.");
+                float damageToApply = _currentDamage * _tempDamageMultiplier;
+                enemyHealth.TakeDamage(damageToApply, deviatedPoint);
+                Debug.Log($"<color=green>HIT CONFIRMED:</color> {gameObject.name} hit <color=yellow>{hit.collider.name}</color> for <color=red>{_currentDamage * _tempDamageMultiplier} damage</color>. Hit deviated by up to {maxHitDeviation:F2}m.");
             }
             else
             {
