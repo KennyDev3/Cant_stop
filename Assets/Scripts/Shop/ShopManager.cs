@@ -2,7 +2,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
-using StarterAssets;
 
 /// <summary>
 /// Hub upgrade panel controller: one panel showing both Parry and Dash trees.
@@ -42,11 +41,14 @@ public class ShopManager : MonoBehaviour
     [Header("Close")]
     [Tooltip("Optional button that closes the panel when clicked.")]
     [SerializeField] private Button closeButton;
+    [Tooltip("If player moves farther than this from where they opened the shop, the shop closes. 0 = disabled.")]
+    [SerializeField] private float closeWhenPlayerAwayDistance = 4f;
 
     public bool IsShopOpen => _isPanelOpen;
 
     private bool _isPanelOpen;
-    private StarterAssetsInputs _input;
+    private Transform _playerTransform;
+    private Vector3 _openPosition;
     private readonly List<HubUpgradeNodeUI> _parryNodes = new List<HubUpgradeNodeUI>();
     private readonly List<HubUpgradeNodeUI> _dashNodes = new List<HubUpgradeNodeUI>();
 
@@ -56,7 +58,7 @@ public class ShopManager : MonoBehaviour
 
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
-            _input = player.GetComponent<StarterAssetsInputs>();
+            _playerTransform = player.transform;
 
         if (shopPanel != null)
             shopPanel.SetActive(false);
@@ -81,11 +83,11 @@ public class ShopManager : MonoBehaviour
     private void Update()
     {
         if (!_isPanelOpen) return;
-        if (_input != null && _input.interact)
-        {
+        if (closeWhenPlayerAwayDistance <= 0f || _playerTransform == null) return;
+
+        float sqrDist = (_playerTransform.position - _openPosition).sqrMagnitude;
+        if (sqrDist > closeWhenPlayerAwayDistance * closeWhenPlayerAwayDistance)
             CloseShop();
-            _input.interact = false;
-        }
     }
 
     private void PopulateTreesOnce()
@@ -145,14 +147,14 @@ public class ShopManager : MonoBehaviour
         }
     }
 
-    /// <summary>Show the panel and free cursor. Called by ShopTerminal or from code.</summary>
+    /// <summary>Show the panel and free cursor. Called by ShopTerminal, HubUpgradeHouseInteractable, or from code. shopPosition is used for move-away close.</summary>
     public void OpenShop(Vector3 shopPosition)
     {
         if (shopPanel == null) return;
+        _openPosition = shopPosition;
         shopPanel.SetActive(true);
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
-        if (_input != null) _input.interact = false;
     }
 
     public void CloseShop()
