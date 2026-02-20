@@ -35,9 +35,15 @@ public class HubUpgradeHouseInteractable : MonoBehaviour, IInteractable
             return;
         }
 
-        upgradePanel.SetActive(true);
-        Cursor.visible = true;
-        Cursor.lockState = CursorLockMode.None;
+        var shopManager = upgradePanel.GetComponent<ShopManager>();
+        if (shopManager != null)
+            shopManager.OpenShop(transform.position);
+        else
+        {
+            upgradePanel.SetActive(true);
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+        }
     }
 
     public void Highlight()
