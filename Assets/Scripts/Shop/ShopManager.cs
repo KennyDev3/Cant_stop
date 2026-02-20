@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using StarterAssets;
 
 /// <summary>
 /// Hub upgrade panel controller: one panel showing both Parry and Dash trees.
@@ -48,6 +49,7 @@ public class ShopManager : MonoBehaviour
 
     private bool _isPanelOpen;
     private Transform _playerTransform;
+    private StarterAssetsInputs _input;
     private Vector3 _openPosition;
     private readonly List<HubUpgradeNodeUI> _parryNodes = new List<HubUpgradeNodeUI>();
     private readonly List<HubUpgradeNodeUI> _dashNodes = new List<HubUpgradeNodeUI>();
@@ -58,7 +60,10 @@ public class ShopManager : MonoBehaviour
 
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
+        {
             _playerTransform = player.transform;
+            _input = player.GetComponent<StarterAssetsInputs>();
+        }
 
         if (shopPanel != null)
             shopPanel.SetActive(false);
@@ -83,11 +88,20 @@ public class ShopManager : MonoBehaviour
     private void Update()
     {
         if (!_isPanelOpen) return;
-        if (closeWhenPlayerAwayDistance <= 0f || _playerTransform == null) return;
 
-        float sqrDist = (_playerTransform.position - _openPosition).sqrMagnitude;
-        if (sqrDist > closeWhenPlayerAwayDistance * closeWhenPlayerAwayDistance)
+        if (_input != null && _input.interact)
+        {
             CloseShop();
+            _input.interact = false;
+            return;
+        }
+
+        if (closeWhenPlayerAwayDistance > 0f && _playerTransform != null)
+        {
+            float sqrDist = (_playerTransform.position - _openPosition).sqrMagnitude;
+            if (sqrDist > closeWhenPlayerAwayDistance * closeWhenPlayerAwayDistance)
+                CloseShop();
+        }
     }
 
     private void PopulateTreesOnce()
@@ -125,6 +139,9 @@ public class ShopManager : MonoBehaviour
             Destroy(parent.GetChild(i).gameObject);
     }
 
+    /// <summary>Legacy name for RefreshAll. Keeps UpgradeHandler and other callers compiling.</summary>
+    public void RefreshUpgradeUI() => RefreshAll();
+
     /// <summary>
     /// Call when panel is shown or after a purchase to refresh all nodes and resource display.
     /// </summary>
@@ -155,6 +172,7 @@ public class ShopManager : MonoBehaviour
         shopPanel.SetActive(true);
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
+        if (_input != null) _input.interact = false;
     }
 
     public void CloseShop()

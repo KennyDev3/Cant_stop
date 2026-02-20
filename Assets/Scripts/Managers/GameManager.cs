@@ -72,6 +72,9 @@ public class GameManager : MonoBehaviour
     public event Action<GameState> OnStateChanged;
     public event Action<int> OnKillCountChanged;
 
+    /// <summary>Fired when a hub upgrade is unlocked (purchase or debug). Use to enable parry/dash in the current scene (e.g. hub) immediately.</summary>
+    public event Action<string> OnHubUpgradeUnlocked;
+
     /// <summary>Fired once after a scene is loaded and run state (if any) is applied. Per-scene systems subscribe in Awake and refresh/resolve refs here instead of relying on Start order.</summary>
     public event Action OnSceneReady;
 
@@ -506,7 +509,12 @@ public class GameManager : MonoBehaviour
     public bool IsHubUpgradeUnlocked(string upgradeId) => _hubUnlocks.IsUnlocked(upgradeId);
 
     /// <summary>Mark an upgrade as purchased (no cost deduction). Use for debug or after TryPurchaseHubUpgrade has deducted cost.</summary>
-    public void UnlockHubUpgrade(string upgradeId) => _hubUnlocks.Unlock(upgradeId);
+    public void UnlockHubUpgrade(string upgradeId)
+    {
+        if (string.IsNullOrEmpty(upgradeId)) return;
+        _hubUnlocks.Unlock(upgradeId);
+        OnHubUpgradeUnlocked?.Invoke(upgradeId);
+    }
 
     public bool CanAffordHubUpgrade(HubUpgradeSO upgrade)
     {
@@ -534,6 +542,7 @@ public class GameManager : MonoBehaviour
             SpendFromHubBank(entry.resource, entry.amount);
         }
         _hubUnlocks.Unlock(upgrade.id);
+        OnHubUpgradeUnlocked?.Invoke(upgrade.id);
         return true;
     }
 
@@ -545,6 +554,7 @@ public class GameManager : MonoBehaviour
         {
             if (string.IsNullOrEmpty(id)) continue;
             _hubUnlocks.Unlock(id);
+            OnHubUpgradeUnlocked?.Invoke(id);
         }
         if (debugUnlockUpgradeIds.Count > 0)
             Debug.Log($"[GameManager] Debug: unlocked {debugUnlockUpgradeIds.Count} hub upgrade(s) in Editor.");
