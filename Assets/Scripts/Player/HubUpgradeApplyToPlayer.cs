@@ -34,6 +34,12 @@ public class HubUpgradeApplyToPlayer : MonoBehaviour
                 if (shield != null) shield.enabled = true;
             }
         }
-        // Dash is gated in ThirdPersonController by check each frame; no component to enable.
+
+        if (upgradeId == HubUpgradeKeys.DashFiretrail)
+        {
+            var fireTrail = GetComponentInChildren<FireTrailController>(true);
+            if (fireTrail != null)
+                fireTrail.enabled = true;
+        }
     }
 }
