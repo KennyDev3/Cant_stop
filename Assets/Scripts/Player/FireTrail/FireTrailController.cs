@@ -19,6 +19,10 @@ public class FireTrailController : MonoBehaviour
     [Tooltip("Trail only spawns for this many seconds after the last dash. Each new dash resets the timer.")]
     [SerializeField] private float _activeDurationAfterDash = 6f;
 
+    [Header("Hub Upgrade Data (optional)")]
+    [Tooltip("Hub upgrade definition for Dash Firetrail. primaryAmount/durationSeconds can be used later for damage or active window tuning.")]
+    [SerializeField] private HubUpgradeSO _dashFiretrailUpgrade;
+
     private float _lastSpawnTime;
     private float _trailActiveUntil; // Time.time value; spawn only when Time.time < this
     private CharacterController _characterController;

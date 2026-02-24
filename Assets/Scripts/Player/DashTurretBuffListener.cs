@@ -8,10 +8,9 @@ using StarterAssets;
 public class DashTurretBuffListener : MonoBehaviour
 {
     [SerializeField] private ThirdPersonController _controller;
-    [Tooltip("Duration in seconds for the turret fire rate buff after dash.")]
-    [SerializeField] private float _buffDuration = 10f;
-    [Tooltip("Fire rate multiplier (2 = 100% more, i.e. double fire rate).")]
-    [SerializeField] private float _buffMultiplier = 2f;
+    [Header("Hub Upgrade Data")]
+    [Tooltip("Hub upgrade definition for Dash Turret Attack Speed. primaryAmount = fire-rate multiplier, durationSeconds = buff duration.")]
+    [SerializeField] private HubUpgradeSO _dashTurretAttackSpeedUpgrade;
 
     private void OnEnable()
     {
@@ -34,8 +33,19 @@ public class DashTurretBuffListener : MonoBehaviour
         var turret = FindFirstObjectByType<TruckTurret>();
         if (turret != null)
         {
-            turret.ApplyTempFireRateBuff(_buffMultiplier, _buffDuration);
-            Debug.Log("[Dash] Turret attack speed buff active.");
+            float multiplier = 2f;
+            float duration = 10f;
+
+            if (_dashTurretAttackSpeedUpgrade != null)
+            {
+                if (_dashTurretAttackSpeedUpgrade.primaryAmount > 0f)
+                    multiplier = _dashTurretAttackSpeedUpgrade.primaryAmount;
+                if (_dashTurretAttackSpeedUpgrade.durationSeconds > 0f)
+                    duration = _dashTurretAttackSpeedUpgrade.durationSeconds;
+            }
+
+            turret.ApplyTempFireRateBuff(multiplier, duration);
+            Debug.Log($"[Dash] Turret attack speed buff active for {duration} seconds (x{multiplier}).");
         }
     }
 }

@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -97,6 +98,13 @@ namespace StarterAssets
         private PlayerAnimatorHandler _animHandler;
         #endregion
 
+        // Passive hub upgrades
+        [Header("Passive Hub Upgrades")]
+        [Tooltip("Movement Speed passive upgrades in order (Level 1, 2, 3). primaryAmount = total speed bonus fraction (0.05, 0.10, 0.15).")]
+        [SerializeField] private List<HubUpgradeSO> passiveMoveSpeedUpgrades = new List<HubUpgradeSO>();
+        private int _passiveMoveSpeedLevelApplied = 0;
+        private float _passiveMoveSpeedMultiplierApplied = 1f;
+
         private void Awake()
         {
             if (_mainCamera == null) _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
@@ -120,6 +128,9 @@ namespace StarterAssets
         {
             InitializeStats();
             _fallTimeoutDelta = FallTimeout;
+
+            // Apply any passive movement speed bonuses from hub upgrades
+            ApplyPassiveMoveSpeedFromHubUpgrades();
         }
 
         private void Update()
@@ -127,6 +138,18 @@ namespace StarterAssets
             UpdateTimers();
             CheckGrounded();
             UpdateStateMachine();
+        }
+
+        private void OnEnable()
+        {
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnHubUpgradeUnlocked += HandleHubUpgradeUnlocked;
+        }
+
+        private void OnDisable()
+        {
+            if (GameManager.Instance != null)
+                GameManager.Instance.OnHubUpgradeUnlocked -= HandleHubUpgradeUnlocked;
         }
 
         private void InitializeStats()
@@ -137,6 +160,56 @@ namespace StarterAssets
                 _stats.InitializeStat(StatType.SprintSpeed, SprintSpeed);
                 _stats.InitializeStat(StatType.DashDuration, DashDuration);
             }
+        }
+
+        private void HandleHubUpgradeUnlocked(string upgradeId)
+        {
+            if (upgradeId == HubUpgradeKeys.PassiveMoveSpeed1 ||
+                upgradeId == HubUpgradeKeys.PassiveMoveSpeed2 ||
+                upgradeId == HubUpgradeKeys.PassiveMoveSpeed3)
+            {
+                ApplyPassiveMoveSpeedFromHubUpgrades();
+            }
+        }
+
+        private void ApplyPassiveMoveSpeedFromHubUpgrades()
+        {
+            if (_stats == null || GameManager.Instance == null) return;
+
+            HubUpgradeSO selected = null;
+            int selectedLevel = 0;
+
+            if (passiveMoveSpeedUpgrades != null)
+            {
+                for (int i = 0; i < passiveMoveSpeedUpgrades.Count; i++)
+                {
+                    var upgrade = passiveMoveSpeedUpgrades[i];
+                    if (upgrade == null || string.IsNullOrEmpty(upgrade.id)) continue;
+                    if (GameManager.Instance.IsHubUpgradeUnlocked(upgrade.id))
+                    {
+                        selected = upgrade;
+                        selectedLevel = i + 1;
+                    }
+                }
+            }
+
+            float newMult = 1f;
+            if (selected != null)
+            {
+                // primaryAmount is total speed bonus fraction (e.g. 0.05, 0.10, 0.15)
+                newMult = 1f + selected.primaryAmount;
+            }
+
+            if (Mathf.Approximately(newMult, _passiveMoveSpeedMultiplierApplied))
+                return;
+
+            float delta = newMult / _passiveMoveSpeedMultiplierApplied;
+
+            _stats.ModifyStat(StatType.MoveSpeed, delta, true);
+            _stats.ModifyStat(StatType.SprintSpeed, delta, true);
+
+            _passiveMoveSpeedMultiplierApplied = newMult;
+            _passiveMoveSpeedLevelApplied = selectedLevel;
         }
 
         private void UpdateTimers()
@@ -461,6 +534,14 @@ namespace StarterAssets
         }
 
         public bool IsInvulnerable() => _currentState == PlayerActivityState.Dashing;
+
+        [ContextMenu("Debug/Passive Movement Stats")]
+        private void DebugPassiveMovementStats()
+        {
+            float moveStat = _stats ? _stats.GetStat(StatType.MoveSpeed) : MoveSpeed;
+            float sprintStat = _stats ? _stats.GetStat(StatType.SprintSpeed) : SprintSpeed;
+            Debug.Log($"[Passive Debug] Move Speed Stat={moveStat}, Sprint Speed Stat={sprintStat}, PassiveMoveSpeedLevel={_passiveMoveSpeedLevelApplied}", this);
+        }
 
         private void OnFootstep(AnimationEvent animationEvent)
         {

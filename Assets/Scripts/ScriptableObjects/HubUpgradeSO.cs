@@ -8,7 +8,7 @@ public enum HubUpgradeTree
 {
     Parry,
     Dash,
-    // Passive,
+    Passive,
     // Meta,
 }
 
@@ -39,6 +39,16 @@ public class HubUpgradeSO : ScriptableObject
     [Header("Cost")]
     [Tooltip("Cost per resource. Default 50/50/50 for Wood/Gold/Iron; fully configurable per upgrade.")]
     public List<ResourceCostEntry> cost = new List<ResourceCostEntry>();
+
+    [Header("Effect Tuning")]
+    [Tooltip("Primary numeric value for this upgrade's effect. Examples: speed bonus fraction (0.05), damage multiplier (2.0), regen per second (0.01), radius bonus (0.10).")]
+    public float primaryAmount = 0f;
+
+    [Tooltip("Optional secondary numeric value if needed for this upgrade (e.g. a secondary stat or extra scaling). Leave 0 if unused.")]
+    public float secondaryAmount = 0f;
+
+    [Tooltip("Duration in seconds for timed effects (e.g. turret buffs, firetrail window). Leave 0 if the upgrade is not time-based.")]
+    public float durationSeconds = 0f;
 
     [System.Serializable]
     public struct ResourceCostEntry

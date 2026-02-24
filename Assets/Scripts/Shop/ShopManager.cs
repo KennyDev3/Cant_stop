@@ -15,12 +15,16 @@ public class ShopManager : MonoBehaviour
     [SerializeField] private List<HubUpgradeSO> parryUpgrades = new List<HubUpgradeSO>();
     [Tooltip("Dash tree upgrades in order (Unlock, then upgrade 1, then upgrade 2).")]
     [SerializeField] private List<HubUpgradeSO> dashUpgrades = new List<HubUpgradeSO>();
+    [Tooltip("Passive tree upgrades in order (Movement Speed, Health Regen, Pickup Range chains).")]
+    [SerializeField] private List<HubUpgradeSO> passiveUpgrades = new List<HubUpgradeSO>();
 
     [Header("Layout")]
     [Tooltip("Parent transform for Parry tree nodes (instantiated here).")]
     [SerializeField] private Transform parryContentParent;
     [Tooltip("Parent transform for Dash tree nodes (instantiated here).")]
     [SerializeField] private Transform dashContentParent;
+    [Tooltip("Parent transform for Passive tree nodes (instantiated here).")]
+    [SerializeField] private Transform passiveContentParent;
     [Tooltip("Prefab with HubUpgradeNodeUI for one upgrade row.")]
     [SerializeField] private GameObject nodePrefab;
 
@@ -53,6 +57,7 @@ public class ShopManager : MonoBehaviour
     private Vector3 _openPosition;
     private readonly List<HubUpgradeNodeUI> _parryNodes = new List<HubUpgradeNodeUI>();
     private readonly List<HubUpgradeNodeUI> _dashNodes = new List<HubUpgradeNodeUI>();
+    private readonly List<HubUpgradeNodeUI> _passiveNodes = new List<HubUpgradeNodeUI>();
 
     private void Awake()
     {
@@ -106,15 +111,18 @@ public class ShopManager : MonoBehaviour
 
     private void PopulateTreesOnce()
     {
-        if (nodePrefab == null || parryContentParent == null && dashContentParent == null) return;
+        if (nodePrefab == null || (parryContentParent == null && dashContentParent == null && passiveContentParent == null)) return;
 
         ClearChildren(parryContentParent);
         ClearChildren(dashContentParent);
+        ClearChildren(passiveContentParent);
         _parryNodes.Clear();
         _dashNodes.Clear();
+        _passiveNodes.Clear();
 
         PopulateTree(parryUpgrades, parryContentParent, _parryNodes);
         PopulateTree(dashUpgrades, dashContentParent, _dashNodes);
+        PopulateTree(passiveUpgrades, passiveContentParent, _passiveNodes);
     }
 
     private void PopulateTree(List<HubUpgradeSO> upgrades, Transform parent, List<HubUpgradeNodeUI> outNodes)
@@ -150,6 +158,7 @@ public class ShopManager : MonoBehaviour
         RefreshResourceDisplay();
         foreach (var n in _parryNodes) n.Refresh();
         foreach (var n in _dashNodes) n.Refresh();
+        foreach (var n in _passiveNodes) n.Refresh();
     }
 
     private void RefreshResourceDisplay()

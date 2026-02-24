@@ -16,6 +16,10 @@ public class ShockwaveProjectile : MonoBehaviour, IParriable
 
     private HashSet<GameObject> _alreadyHitEnemies = new HashSet<GameObject>();
 
+    [Header("Hub Upgrade Data")]
+    [Tooltip("Hub upgrade definition for Parry Return Damage. primaryAmount = reflected damage multiplier.")]
+    [SerializeField] private HubUpgradeSO _parryReturnDamageUpgrade;
+
 
     public void Initialize(float attackDamage, float projectileSpeed)
     {
@@ -93,6 +97,15 @@ public class ShockwaveProjectile : MonoBehaviour, IParriable
 
         speed *= 1.5f;
         damage *= 1.5f;
+
+        // Hub upgrade: additional damage multiplier on returned shockwave
+        if (GameManager.Instance != null && GameManager.Instance.IsHubUpgradeUnlocked(HubUpgradeKeys.ParryReturnDamage))
+        {
+            float multiplier = 2f;
+            if (_parryReturnDamageUpgrade != null && _parryReturnDamageUpgrade.primaryAmount > 0f)
+                multiplier = _parryReturnDamageUpgrade.primaryAmount;
+            damage *= multiplier;
+        }
 
         
         CancelInvoke();

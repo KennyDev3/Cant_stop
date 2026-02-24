@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 using StarterAssets;
 
 [RequireComponent(typeof(LineRenderer))]
@@ -29,6 +30,14 @@ public class PlayerAreaPickup : MonoBehaviour
     private PlayerGarbageHandler _garbageHandler;
     private UIManager _uiManager;
 
+    // Passive hub upgrades – pickup radius
+    private float _baseRadius;
+    private int _passivePickupLevelApplied = 0;
+
+    [Header("Passive Hub Upgrades")]
+    [Tooltip("Pickup Range passive upgrades in order (Level 1, 2, 3). primaryAmount = radius bonus fraction (0.10, 0.20, 0.30).")]
+    [SerializeField] private List<HubUpgradeSO> passivePickupRangeUpgrades = new List<HubUpgradeSO>();
+
     void Start()
     {
         _input = GetComponentInParent<StarterAssetsInputs>();
@@ -36,6 +45,9 @@ public class PlayerAreaPickup : MonoBehaviour
         _uiManager = FindFirstObjectByType<UIManager>();
 
         SetupLineRenderer();
+
+        _baseRadius = radius;
+        ApplyPassivePickupRangeFromHubUpgrades();
 
         // Start FULL (Ready to use)
         _currentCooldownTimer = pickupCooldown;
@@ -45,6 +57,18 @@ public class PlayerAreaPickup : MonoBehaviour
             // Send (3, 3) -> Full Bar
             _uiManager.UpdatePickupCooldown(_currentCooldownTimer, pickupCooldown);
         }
+    }
+
+    private void OnEnable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnHubUpgradeUnlocked += HandleHubUpgradeUnlocked;
+    }
+
+    private void OnDisable()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.OnHubUpgradeUnlocked -= HandleHubUpgradeUnlocked;
     }
 
     void Update()
@@ -167,9 +191,67 @@ public class PlayerAreaPickup : MonoBehaviour
         }
     }
 
+    private void HandleHubUpgradeUnlocked(string upgradeId)
+    {
+        if (upgradeId == HubUpgradeKeys.PassivePickupRange1 ||
+            upgradeId == HubUpgradeKeys.PassivePickupRange2 ||
+            upgradeId == HubUpgradeKeys.PassivePickupRange3)
+        {
+            ApplyPassivePickupRangeFromHubUpgrades();
+        }
+    }
+
+    private void ApplyPassivePickupRangeFromHubUpgrades()
+    {
+        if (GameManager.Instance == null) return;
+
+        HubUpgradeSO selected = null;
+        int selectedLevel = 0;
+
+        if (passivePickupRangeUpgrades != null)
+        {
+            for (int i = 0; i < passivePickupRangeUpgrades.Count; i++)
+            {
+                var upgrade = passivePickupRangeUpgrades[i];
+                if (upgrade == null || string.IsNullOrEmpty(upgrade.id)) continue;
+                if (GameManager.Instance.IsHubUpgradeUnlocked(upgrade.id))
+                {
+                    selected = upgrade;
+                    selectedLevel = i + 1;
+                }
+            }
+        }
+
+        if (selected == null && _passivePickupLevelApplied == 0)
+            return;
+
+        _passivePickupLevelApplied = selectedLevel;
+
+        float multiplier = 1f;
+        if (selected != null)
+        {
+            // primaryAmount is radius bonus fraction (e.g. 0.10, 0.20, 0.30)
+            multiplier = 1f + selected.primaryAmount;
+        }
+
+        radius = _baseRadius * multiplier;
+
+        // Keep debug/line-renderer visual in sync
+        if (_line != null)
+        {
+            DrawCircle();
+        }
+    }
+
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, radius);
+    }
+
+    [ContextMenu("Debug/Passive Pickup Radius")]
+    private void DebugPassivePickupRadius()
+    {
+        Debug.Log($"[Passive Debug] BaseRadius={_baseRadius}, CurrentRadius={radius}, PassivePickupLevel={_passivePickupLevelApplied}", this);
     }
 }
