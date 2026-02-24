@@ -32,6 +32,10 @@ public class PlayerParryController : MonoBehaviour
     [Header("Audio")]
     [SerializeField] SoundDef parrySound;
 
+    [Header("Hub Upgrade Data")]
+    [Tooltip("Hub upgrade definition for Parry Turret Buff. primaryAmount = damage multiplier, durationSeconds = buff duration.")]
+    [SerializeField] private HubUpgradeSO _parryTurretBuffUpgrade;
+
 
         [Header("Events")]
     public UnityEvent OnParryStart;
@@ -136,14 +140,25 @@ public class PlayerParryController : MonoBehaviour
             StartCoroutine(InvincibilityRoutine());
             OnParrySuccess?.Invoke();
 
-            // Hub upgrade: turret +100% damage for 10s on successful parry
+            // Hub upgrade: turret damage buff on successful parry
             if (GameManager.Instance != null && GameManager.Instance.IsHubUpgradeUnlocked(HubUpgradeKeys.ParryTurretBuff))
             {
                 var turret = FindFirstObjectByType<TruckTurret>();
                 if (turret != null)
                 {
-                    turret.ApplyTempDamageBuff(2f, 10f);
-                    Debug.Log("[Parry] Stronger turret shots for 10 seconds.");
+                    float multiplier = 2f;
+                    float duration = 10f;
+
+                    if (_parryTurretBuffUpgrade != null)
+                    {
+                        if (_parryTurretBuffUpgrade.primaryAmount > 0f)
+                            multiplier = _parryTurretBuffUpgrade.primaryAmount;
+                        if (_parryTurretBuffUpgrade.durationSeconds > 0f)
+                            duration = _parryTurretBuffUpgrade.durationSeconds;
+                    }
+
+                    turret.ApplyTempDamageBuff(multiplier, duration);
+                    Debug.Log($"[Parry] Stronger turret shots for {duration} seconds (x{multiplier}).");
                 }
             }
         }

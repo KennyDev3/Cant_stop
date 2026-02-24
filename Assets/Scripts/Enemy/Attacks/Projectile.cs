@@ -14,6 +14,10 @@ public class Projectile : MonoBehaviour, IParriable
     private Rigidbody rb;
     private bool _isParried = false;
 
+    [Header("Hub Upgrade Data")]
+    [Tooltip("Hub upgrade definition for Parry Return Damage. primaryAmount = reflected damage multiplier.")]
+    [SerializeField] private HubUpgradeSO _parryReturnDamageUpgrade;
+
 
     void Awake()
     {
@@ -81,9 +85,14 @@ public class Projectile : MonoBehaviour, IParriable
 
         _isParried = true;
 
-        // Hub upgrade: +100% damage on returned projectile
+        // Hub upgrade: damage multiplier on returned projectile
         if (GameManager.Instance != null && GameManager.Instance.IsHubUpgradeUnlocked(HubUpgradeKeys.ParryReturnDamage))
-            damage *= 2f;
+        {
+            float multiplier = 2f;
+            if (_parryReturnDamageUpgrade != null && _parryReturnDamageUpgrade.primaryAmount > 0f)
+                multiplier = _parryReturnDamageUpgrade.primaryAmount;
+            damage *= multiplier;
+        }
 
         // Flip direction 
         transform.forward = -transform.forward;

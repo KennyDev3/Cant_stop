@@ -5,6 +5,7 @@ using UnityEngine.Events;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using System.Collections;
+using System.Collections.Generic;
 using Unity.Cinemachine;
 
 
@@ -15,6 +16,12 @@ public class PlayerHealth : MonoBehaviour, IRunStateContributor
     private float currentHealth;
     private bool isDead = false;
 
+    // Passive hub upgrades – health regeneration
+    private float _regenPercentPerSecond = 0f;
+    private int _appliedRegenLevel = 0;
+    [Header("Passive Hub Upgrades")]
+    [Tooltip("Health Regen passive upgrades in order (Level 1, 2, 3). primaryAmount = regen per second as fraction of max health (0.01, 0.02, 0.03).")]
+    [SerializeField] private List<HubUpgradeSO> passiveHealthRegenUpgrades = new List<HubUpgradeSO>();
 
     private ThirdPersonController thirdPersonController;
     private CharacterController characterController;
@@ -69,13 +76,19 @@ public class PlayerHealth : MonoBehaviour, IRunStateContributor
     private void OnEnable()
     {
         if (GameManager.Instance != null)
+        {
             GameManager.Instance.RegisterRunStateContributor(this);
+            GameManager.Instance.OnHubUpgradeUnlocked += HandleHubUpgradeUnlocked;
+        }
     }
 
     private void OnDisable()
     {
         if (GameManager.Instance != null)
+        {
             GameManager.Instance.UnregisterRunStateContributor(this);
+            GameManager.Instance.OnHubUpgradeUnlocked -= HandleHubUpgradeUnlocked;
+        }
     }
 
     void Start()
@@ -109,6 +122,12 @@ public class PlayerHealth : MonoBehaviour, IRunStateContributor
             Debug.LogWarning("Global Volume or Vignette override missing!");
         }
 
+        ApplyPassiveRegenFromHubUpgrades();
+    }
+
+    private void Update()
+    {
+        TickHealthRegen();
     }
 
     public void TakeDamage(float damageAmount)
@@ -136,6 +155,63 @@ public class PlayerHealth : MonoBehaviour, IRunStateContributor
         {
             isDead = true;
             Die();
+        }
+    }
+
+    private void HandleHubUpgradeUnlocked(string upgradeId)
+    {
+        if (upgradeId == HubUpgradeKeys.PassiveHealthRegen1 ||
+            upgradeId == HubUpgradeKeys.PassiveHealthRegen2 ||
+            upgradeId == HubUpgradeKeys.PassiveHealthRegen3)
+        {
+            ApplyPassiveRegenFromHubUpgrades();
+        }
+    }
+
+    private void ApplyPassiveRegenFromHubUpgrades()
+    {
+        if (GameManager.Instance == null) return;
+
+        HubUpgradeSO selected = null;
+        int selectedLevel = 0;
+
+        if (passiveHealthRegenUpgrades != null)
+        {
+            for (int i = 0; i < passiveHealthRegenUpgrades.Count; i++)
+            {
+                var upgrade = passiveHealthRegenUpgrades[i];
+                if (upgrade == null || string.IsNullOrEmpty(upgrade.id)) continue;
+                if (GameManager.Instance.IsHubUpgradeUnlocked(upgrade.id))
+                {
+                    selected = upgrade;
+                    selectedLevel = i + 1;
+                }
+            }
+        }
+
+        if (selected == null)
+        {
+            _appliedRegenLevel = 0;
+            _regenPercentPerSecond = 0f;
+        }
+        else
+        {
+            _appliedRegenLevel = selectedLevel;
+            _regenPercentPerSecond = selected.primaryAmount;
+        }
+    }
+
+    private void TickHealthRegen()
+    {
+        if (isDead || _regenPercentPerSecond <= 0f) return;
+        if (currentHealth >= maxHealth) return;
+
+        float previous = currentHealth;
+        currentHealth = Mathf.Min(maxHealth, currentHealth + maxHealth * _regenPercentPerSecond * Time.deltaTime);
+
+        if (!Mathf.Approximately(previous, currentHealth))
+        {
+            onHealthChanged.Invoke(currentHealth, maxHealth);
         }
     }
 
@@ -207,6 +283,12 @@ public class PlayerHealth : MonoBehaviour, IRunStateContributor
         _perlin.AmplitudeGain = 0f;
         _perlin.FrequencyGain = 1f;
 
+    }
+
+    [ContextMenu("Debug/Passive Health Regen")]
+    private void DebugPassiveHealthRegen()
+    {
+        Debug.Log($"[Passive Debug] Current Health={currentHealth}/{maxHealth}, RegenLevel={_appliedRegenLevel}, RegenPercentPerSecond={_regenPercentPerSecond}", this);
     }
 }
 
