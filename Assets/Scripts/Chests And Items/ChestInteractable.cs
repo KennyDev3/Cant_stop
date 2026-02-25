@@ -106,8 +106,22 @@ public class ChestInteractable : MonoBehaviour, IInteractable
 
         // Get Item
         ItemSO itemToSpawn = lootTable.GetRandomItem(selectedRarity);
+        if (itemToSpawn == null) return;
 
+        // Always spawn the primary item.
         StartCoroutine(SpawnItemRoutine(itemToSpawn));
+
+        // Meta upgrade: per-item chance to spawn an extra duplicate from chests.
+        float metaDoubleDropChance = 0f;
+        if (GameManager.Instance != null)
+        {
+            metaDoubleDropChance = GameManager.Instance.MetaDoubleDropChance;
+        }
+
+        if (metaDoubleDropChance > 0f && GameManager.Instance != null && Random.value < metaDoubleDropChance)
+        {
+            StartCoroutine(SpawnItemRoutine(itemToSpawn));
+        }
     }
 
 

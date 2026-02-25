@@ -9,7 +9,7 @@ public enum HubUpgradeTree
     Parry,
     Dash,
     Passive,
-    // Meta,
+    Meta,
 }
 
 /// <summary>
