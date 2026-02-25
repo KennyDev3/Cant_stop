@@ -5,26 +5,37 @@ using System.Collections.Generic;
 using StarterAssets;
 
 /// <summary>
-/// Hub upgrade panel controller: one panel showing both Parry and Dash trees.
-/// Place on the upgrade panel GameObject. Assign Parry/Dash upgrade SOs, content parents, node prefab, and resource display.
+/// Hub upgrade panel controller: can show Parry, Dash, and multiple Passive trees.
+/// Place on the upgrade panel GameObject. Assign upgrade SO lists, content parents, node prefab, and resource display.
 /// </summary>
 public class ShopManager : MonoBehaviour
 {
+    [System.Serializable]
+    private class PassiveColumn
+    {
+        [Tooltip("Optional label for editor clarity (e.g. Move Speed, Health Regen, Pickup Range).")]
+        public string label;
+
+        [Tooltip("Parent transform for this passive branch (column) nodes.")]
+        public Transform contentParent;
+
+        [Tooltip("Upgrades in this passive branch, in order (Unlock -> Level 1 -> Level 2 ...).")]
+        public List<HubUpgradeSO> upgrades = new List<HubUpgradeSO>();
+    }
+
     [Header("Tree data")]
     [Tooltip("Parry tree upgrades in order (Unlock, then upgrade 1, then upgrade 2).")]
     [SerializeField] private List<HubUpgradeSO> parryUpgrades = new List<HubUpgradeSO>();
     [Tooltip("Dash tree upgrades in order (Unlock, then upgrade 1, then upgrade 2).")]
     [SerializeField] private List<HubUpgradeSO> dashUpgrades = new List<HubUpgradeSO>();
-    [Tooltip("Passive tree upgrades in order (Movement Speed, Health Regen, Pickup Range chains).")]
-    [SerializeField] private List<HubUpgradeSO> passiveUpgrades = new List<HubUpgradeSO>();
+    [Tooltip("Passive upgrade branches (e.g. Move Speed, Health Regen, Pickup Range), each with its own content parent.")]
+    [SerializeField] private List<PassiveColumn> passiveColumns = new List<PassiveColumn>();
 
     [Header("Layout")]
     [Tooltip("Parent transform for Parry tree nodes (instantiated here).")]
     [SerializeField] private Transform parryContentParent;
     [Tooltip("Parent transform for Dash tree nodes (instantiated here).")]
     [SerializeField] private Transform dashContentParent;
-    [Tooltip("Parent transform for Passive tree nodes (instantiated here).")]
-    [SerializeField] private Transform passiveContentParent;
     [Tooltip("Prefab with HubUpgradeNodeUI for one upgrade row.")]
     [SerializeField] private GameObject nodePrefab;
 
@@ -70,9 +81,6 @@ public class ShopManager : MonoBehaviour
             _input = player.GetComponent<StarterAssetsInputs>();
         }
 
-        if (shopPanel != null)
-            shopPanel.SetActive(false);
-
         if (closeButton != null)
             closeButton.onClick.AddListener(CloseShop);
     }
@@ -80,7 +88,7 @@ public class ShopManager : MonoBehaviour
     private void OnEnable()
     {
         _isPanelOpen = true;
-        if (_parryNodes.Count == 0 && _dashNodes.Count == 0)
+        if (_parryNodes.Count == 0 && _dashNodes.Count == 0 && _passiveNodes.Count == 0)
             PopulateTreesOnce();
         RefreshAll();
     }
@@ -111,18 +119,45 @@ public class ShopManager : MonoBehaviour
 
     private void PopulateTreesOnce()
     {
-        if (nodePrefab == null || (parryContentParent == null && dashContentParent == null && passiveContentParent == null)) return;
+        bool hasAnyParent = parryContentParent != null || dashContentParent != null;
+        if (passiveColumns != null)
+        {
+            foreach (var col in passiveColumns)
+            {
+                if (col != null && col.contentParent != null)
+                {
+                    hasAnyParent = true;
+                    break;
+                }
+            }
+        }
+
+        if (nodePrefab == null || !hasAnyParent) return;
 
         ClearChildren(parryContentParent);
         ClearChildren(dashContentParent);
-        ClearChildren(passiveContentParent);
+        if (passiveColumns != null)
+        {
+            foreach (var col in passiveColumns)
+            {
+                if (col != null)
+                    ClearChildren(col.contentParent);
+            }
+        }
         _parryNodes.Clear();
         _dashNodes.Clear();
         _passiveNodes.Clear();
 
         PopulateTree(parryUpgrades, parryContentParent, _parryNodes);
         PopulateTree(dashUpgrades, dashContentParent, _dashNodes);
-        PopulateTree(passiveUpgrades, passiveContentParent, _passiveNodes);
+        if (passiveColumns != null)
+        {
+            foreach (var col in passiveColumns)
+            {
+                if (col == null) continue;
+                PopulateTree(col.upgrades, col.contentParent, _passiveNodes);
+            }
+        }
     }
 
     private void PopulateTree(List<HubUpgradeSO> upgrades, Transform parent, List<HubUpgradeNodeUI> outNodes)
