@@ -33,6 +33,12 @@ public class DisposableRewardLogic : MonoBehaviour
 
         int rolls = isDoubleRoll ? 2 : 1;
 
+        float metaDoubleDropChance = 0f;
+        if (GameManager.Instance != null)
+        {
+            metaDoubleDropChance = GameManager.Instance.MetaDoubleDropChance;
+        }
+
         for (int i = 0; i < rolls; i++)
         {
             float roll = Random.value;
@@ -47,6 +53,13 @@ public class DisposableRewardLogic : MonoBehaviour
             {
                 // Delay subsequent items slightly for better visual feedback
                 StartCoroutine(SpawnItemRoutine(itemToSpawn, targetPos, i * 0.15f));
+
+                // Meta upgrade: per-item chance to spawn an extra duplicate.
+                if (metaDoubleDropChance > 0f && GameManager.Instance != null && Random.value < metaDoubleDropChance)
+                {
+                    float extraDelay = i * 0.15f + 0.05f;
+                    StartCoroutine(SpawnItemRoutine(itemToSpawn, targetPos, extraDelay));
+                }
             }
         }
 

@@ -7,6 +7,9 @@ using StarterAssets;
 /// </summary>
 public class FireTrailController : MonoBehaviour
 {
+
+    private Transform _nodesParent;
+
     [Header("Prefab")]
     [SerializeField] private GameObject _nodePrefab;
 
@@ -42,6 +45,13 @@ public class FireTrailController : MonoBehaviour
             _thirdPersonController.OnDashStart += OnPlayerDashed;
         if (_nodePrefab == null)
             Debug.LogWarning("[FireTrailController] Node prefab not assigned.", this);
+
+        if (_nodePrefab == null)
+            Debug.LogWarning("[FireTrailController] Node prefab not assigned.", this);
+
+        var parentGO = new GameObject("FireTrailNodes");
+        _nodesParent = parentGO.transform;
+        
     }
 
     private void OnDisable()
@@ -73,6 +83,6 @@ public class FireTrailController : MonoBehaviour
 
         _lastSpawnTime = Time.time;
         Vector3 groundPos = transform.position - new Vector3(0f, _groundOffset, 0f);
-        Instantiate(_nodePrefab, groundPos, Quaternion.identity);
+        Instantiate(_nodePrefab, groundPos, Quaternion.identity, _nodesParent);
     }
 }

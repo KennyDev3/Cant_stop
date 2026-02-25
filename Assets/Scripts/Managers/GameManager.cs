@@ -57,16 +57,39 @@ public class GameManager : MonoBehaviour
     [Tooltip("Persistent across scenes. Never cleared when entering Hub or loading levels. Cleared only explicitly (e.g. new game).")]
     private HubUnlockState _hubUnlocks = new HubUnlockState();
 
+    [Header("Meta Upgrades")]
+    [Tooltip("Meta capacity upgrades (Level 1/2/3). Highest unlocked primaryAmount is used as a flat capacity bonus.")]
+    [SerializeField] private List<HubUpgradeSO> metaCapacityUpgrades = new List<HubUpgradeSO>();
+    [Tooltip("Meta resource value upgrades (Level 1/2/3). primaryAmount is the total bonus fraction (e.g. 0.05, 0.10, 0.15).")]
+    [SerializeField] private List<HubUpgradeSO> metaResourceValueUpgrades = new List<HubUpgradeSO>();
+    [Tooltip("Meta double-drop upgrades (Level 1/2/3). primaryAmount is the per-item duplicate chance (e.g. 0.03, 0.05, 0.07).")]
+    [SerializeField] private List<HubUpgradeSO> metaDoubleDropUpgrades = new List<HubUpgradeSO>();
+
     [Header("Hub upgrade debug")]
     [Tooltip("When true, in Editor these upgrade IDs are unlocked on Awake (no cost). Use to test levels with specific upgrades.")]
     [SerializeField] private bool applyDebugUnlocksInEditor = false;
     [Tooltip("Upgrade IDs to force-unlock when applyDebugUnlocksInEditor is true. Use HubUpgradeKeys constants.")]
     [SerializeField] private List<string> debugUnlockUpgradeIds = new List<string>();
 
+    // Meta upgrade aggregates (computed from unlocked HubUpgradeSOs)
+    private int _metaCapacityBonus;
+    private float _metaResourceBonusFraction;
+    private float _metaDoubleDropChance;
+
+    // Track whether meta capacity has been applied for the current run
+    private bool _metaCapacityAppliedForCurrentRun;
+
     // Persistence variables
    
     public int CurrentRotation => _currentRun.Meta.CurrentRotation;
     public int KillCount => _currentRun.Meta.KillCount;
+
+    /// <summary>Total flat capacity bonus from meta upgrades (e.g. +10 / +20 / +40).</summary>
+    public int MetaCapacityBonus => _metaCapacityBonus;
+    /// <summary>Total resource value bonus fraction from meta upgrades (e.g. 0.05f, 0.10f, 0.15f).</summary>
+    public float MetaResourceBonusFraction => _metaResourceBonusFraction;
+    /// <summary>Per-item duplicate chance for item drops from meta upgrades (e.g. 0.03f, 0.05f, 0.07f).</summary>
+    public float MetaDoubleDropChance => _metaDoubleDropChance;
 
     public GameState CurrentState { get; private set; }
     public event Action<GameState> OnStateChanged;
@@ -133,6 +156,7 @@ public class GameManager : MonoBehaviour
 
         LoadDebugHubBankIntoBank();
         ApplyDebugHubUnlocksIfNeeded();
+        RecalculateMetaStats();
 
         var overlayGo = new GameObject("SceneFadeOverlay");
         overlayGo.transform.SetParent(transform);
@@ -406,6 +430,8 @@ public class GameManager : MonoBehaviour
         if (DifficultyManager.Instance != null)
             DifficultyManager.Instance.ResetDifficulty();
 
+        _metaCapacityAppliedForCurrentRun = false;
+
         SetState(GameState.Playing);
         OnKillCountChanged?.Invoke(KillCount);
     }
@@ -495,6 +521,22 @@ public class GameManager : MonoBehaviour
         return _hubBank.TryGetValue(type, out int c) ? c : 0;
     }
 
+    /// <summary>
+    /// Apply the current meta capacity bonus to the given player once per run.
+    /// Safe to call multiple times; extra calls in the same run are ignored.
+    /// </summary>
+    public void ApplyMetaCapacityTo(PlayerGarbageHandler handler)
+    {
+        if (handler == null) return;
+        if (_metaCapacityBonus <= 0) return;
+
+        // Only apply once per run so we don't double-count across scene loads.
+        if (_metaCapacityAppliedForCurrentRun) return;
+
+        handler.UpgradeMaxCapacity(_metaCapacityBonus);
+        _metaCapacityAppliedForCurrentRun = true;
+    }
+
     /// <summary>Deduct amount from hub bank for the given resource. Call only when CanAfford has been checked. Updates debug list.</summary>
     private void SpendFromHubBank(ResourceSO type, int amount)
     {
@@ -513,6 +555,7 @@ public class GameManager : MonoBehaviour
     {
         if (string.IsNullOrEmpty(upgradeId)) return;
         _hubUnlocks.Unlock(upgradeId);
+        RecalculateMetaStats();
         OnHubUpgradeUnlocked?.Invoke(upgradeId);
     }
 
@@ -541,8 +584,7 @@ public class GameManager : MonoBehaviour
             if (entry.resource == null || entry.amount <= 0) continue;
             SpendFromHubBank(entry.resource, entry.amount);
         }
-        _hubUnlocks.Unlock(upgrade.id);
-        OnHubUpgradeUnlocked?.Invoke(upgrade.id);
+        UnlockHubUpgrade(upgrade.id);
         return true;
     }
 
@@ -553,8 +595,7 @@ public class GameManager : MonoBehaviour
         foreach (string id in debugUnlockUpgradeIds)
         {
             if (string.IsNullOrEmpty(id)) continue;
-            _hubUnlocks.Unlock(id);
-            OnHubUpgradeUnlocked?.Invoke(id);
+            UnlockHubUpgrade(id);
         }
         if (debugUnlockUpgradeIds.Count > 0)
             Debug.Log($"[GameManager] Debug: unlocked {debugUnlockUpgradeIds.Count} hub upgrade(s) in Editor.");
@@ -595,5 +636,47 @@ public class GameManager : MonoBehaviour
             if (entry.resource == null) continue;
             _hubBank[entry.resource] = Mathf.Max(0, entry.count);
         }
+    }
+
+    // --- Meta upgrade helpers ---
+
+    private void RecalculateMetaStats()
+    {
+        _metaCapacityBonus = CalculateMetaInt(metaCapacityUpgrades);
+        _metaResourceBonusFraction = CalculateMetaFloat(metaResourceValueUpgrades);
+        _metaDoubleDropChance = CalculateMetaFloat(metaDoubleDropUpgrades);
+    }
+
+    private int CalculateMetaInt(List<HubUpgradeSO> upgrades)
+    {
+        int best = 0;
+        if (upgrades == null || _hubUnlocks == null) return 0;
+
+        foreach (var upgrade in upgrades)
+        {
+            if (upgrade == null || string.IsNullOrEmpty(upgrade.id)) continue;
+            if (!_hubUnlocks.IsUnlocked(upgrade.id)) continue;
+
+            int value = Mathf.RoundToInt(upgrade.primaryAmount);
+            if (value > best) best = value;
+        }
+
+        return best;
+    }
+
+    private float CalculateMetaFloat(List<HubUpgradeSO> upgrades)
+    {
+        float best = 0f;
+        if (upgrades == null || _hubUnlocks == null) return 0f;
+
+        foreach (var upgrade in upgrades)
+        {
+            if (upgrade == null || string.IsNullOrEmpty(upgrade.id)) continue;
+            if (!_hubUnlocks.IsUnlocked(upgrade.id)) continue;
+
+            if (upgrade.primaryAmount > best) best = upgrade.primaryAmount;
+        }
+
+        return best;
     }
 }

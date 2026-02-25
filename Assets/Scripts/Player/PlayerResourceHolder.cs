@@ -32,10 +32,23 @@ public class PlayerResourceHolder : MonoBehaviour, IRunStateContributor
     {
         if (type == null || amount <= 0) return;
 
+        int finalAmount = amount;
+
+        // Apply meta resource value bonus (e.g. +5%/+10%/+15%) if present.
+        if (GameManager.Instance != null)
+        {
+            float bonusFraction = GameManager.Instance.MetaResourceBonusFraction;
+            if (bonusFraction > 0f)
+            {
+                float scaled = amount * (1f + bonusFraction);
+                finalAmount = Mathf.Max(1, Mathf.RoundToInt(scaled));
+            }
+        }
+
         if (!_counts.ContainsKey(type))
             _counts[type] = 0;
 
-        _counts[type] += amount;
+        _counts[type] += finalAmount;
         int newCount = _counts[type];
 
         UpdateDebugList();
