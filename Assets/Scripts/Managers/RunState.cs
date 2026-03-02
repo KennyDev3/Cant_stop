@@ -171,16 +171,24 @@ public class RunState
     {
         public int CurrentRotation;
         public int KillCount;
+        /// <summary>Total garbage value deposited toward objectives across the entire run.</summary>
+        public int TotalGarbageDeposited;
 
         public void Clear()
         {
             CurrentRotation = 0;
             KillCount = 0;
+            TotalGarbageDeposited = 0;
         }
 
         public MetaState Clone()
         {
-            return new MetaState { CurrentRotation = CurrentRotation, KillCount = KillCount };
+            return new MetaState
+            {
+                CurrentRotation = CurrentRotation,
+                KillCount = KillCount,
+                TotalGarbageDeposited = TotalGarbageDeposited
+            };
         }
     }
 }

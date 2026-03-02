@@ -94,6 +94,8 @@ public class GameManager : MonoBehaviour
     public GameState CurrentState { get; private set; }
     public event Action<GameState> OnStateChanged;
     public event Action<int> OnKillCountChanged;
+    /// <summary>Fired whenever the hub resource bank changes (entering hub, purchases, debug changes).</summary>
+    public event Action OnHubBankChanged;
 
     /// <summary>Fired when a hub upgrade is unlocked (purchase or debug). Use to enable parry/dash in the current scene (e.g. hub) immediately.</summary>
     public event Action<string> OnHubUpgradeUnlocked;
@@ -107,6 +109,10 @@ public class GameManager : MonoBehaviour
     private List<IRunStateContributor> _contributors = new List<IRunStateContributor>();
 
     private bool _isLoading;
+
+    // --- Run end / summary state ---
+    private RunEndType? _pendingRunEndType;
+    private RunSummaryData _pendingRunSummary;
 
     public void RegisterRunStateContributor(IRunStateContributor contributor)
     {
@@ -228,6 +234,8 @@ public class GameManager : MonoBehaviour
     private void ClearPersistentData()
     {
         _currentRun.Clear();
+        _pendingRunEndType = null;
+        _pendingRunSummary = null;
     }
 
     // --- Scene Management (single entry point) ---
@@ -385,8 +393,7 @@ public class GameManager : MonoBehaviour
         {
             if (sceneName == hubSceneName)
             {
-                FlushRunResourcesToHubBank();
-                _currentRun.Clear(); // Run ended: reset health, inventory, rotation, kill count, difficulty etc.; hub bank already updated
+                HandleEnteringHubWithRunState();
             }
             Debug.Log($"[RunState] Scene loaded. Before apply: Health={_currentRun.Player.Health} Money={_currentRun.Economy.Money} InventoryCount={_currentRun.Inventory.Items.Count} WaveCredits={_currentRun.Economy.WaveCredits} TrickleCredits={_currentRun.Economy.TrickleCredits} DiffStage={_currentRun.Difficulty.Stage}");
             ApplyRunStateToScene();
@@ -492,6 +499,13 @@ public class GameManager : MonoBehaviour
         OnKillCountChanged?.Invoke(_currentRun.Meta.KillCount);
     }
 
+    /// <summary>Add garbage value deposited toward objectives to the run-wide meta total.</summary>
+    public void AddGarbageDeposited(int value)
+    {
+        if (value <= 0) return;
+        _currentRun.Meta.TotalGarbageDeposited += value;
+    }
+
     public int GetTargetGoalForCurrentLevel()
     {
         if (_currentRun.Meta.CurrentRotation < levelGoals.Count)
@@ -514,7 +528,7 @@ public class GameManager : MonoBehaviour
     public void SetCursorState(bool visible) { Cursor.visible = visible; Cursor.lockState = visible ? CursorLockMode.None : CursorLockMode.Locked; }
     public void QuitGame() => Application.Quit();
 
-    /// <summary>Session-only hub bank. Returns 0 if type not in bank. Used by hub bench UI.</summary>
+    /// <summary>Session-only hub bank. Returns 0 if type not in bank. Used by hub bench and HUD UI.</summary>
     public int GetHubBankCount(ResourceSO type)
     {
         if (type == null) return 0;
@@ -537,13 +551,14 @@ public class GameManager : MonoBehaviour
         _metaCapacityAppliedForCurrentRun = true;
     }
 
-    /// <summary>Deduct amount from hub bank for the given resource. Call only when CanAfford has been checked. Updates debug list.</summary>
+    /// <summary>Deduct amount from hub bank for the given resource. Call only when CanAfford has been checked. Updates debug list and raises change event.</summary>
     private void SpendFromHubBank(ResourceSO type, int amount)
     {
         if (type == null || amount <= 0) return;
         if (!_hubBank.ContainsKey(type)) return;
         _hubBank[type] = Mathf.Max(0, _hubBank[type] - amount);
         UpdateDebugHubBank();
+        NotifyHubBankChanged();
     }
 
     // --- Hub upgrade unlock API (persistent; not cleared on scene change) ---
@@ -615,6 +630,7 @@ public class GameManager : MonoBehaviour
         _currentRun.Resources.Clear();
         UpdateDebugHubBank();
         Debug.Log("[GameManager] Run resources flushed to hub bank.");
+        NotifyHubBankChanged();
     }
 
     private void UpdateDebugHubBank()
@@ -636,6 +652,108 @@ public class GameManager : MonoBehaviour
             if (entry.resource == null) continue;
             _hubBank[entry.resource] = Mathf.Max(0, entry.count);
         }
+        NotifyHubBankChanged();
+    }
+
+    /// <summary>
+    /// Set the pending run end type and optional precomputed summary.
+    /// This is used when the player commits to ending the run (death, extraction, completion) before the actual hub transition happens.
+    /// </summary>
+    public void SetPendingRunEnd(RunEndType endType, RunSummaryData summary = null)
+    {
+        _pendingRunEndType = endType;
+        _pendingRunSummary = summary;
+    }
+
+    /// <summary>Build a RunSummaryData snapshot from the current RunState for the given outcome type.</summary>
+    public RunSummaryData BuildRunSummary(RunEndType endType)
+    {
+        var summary = new RunSummaryData
+        {
+            EndType = endType,
+            TotalRunTimeSeconds = _currentRun.Difficulty.TotalRunTime,
+            TotalKills = _currentRun.Meta.KillCount,
+            TotalGarbageDeposited = _currentRun.Meta.TotalGarbageDeposited
+        };
+
+        float multiplier = GetRetrievalMultiplier(endType);
+        summary.RetrievalPercentage = Mathf.Round(multiplier * 100f);
+
+        // Copy collected resources from run state
+        foreach (var kvp in _currentRun.Resources.Counts)
+        {
+            if (kvp.Key == null) continue;
+            summary.CollectedResources[kvp.Key] = kvp.Value;
+        }
+
+        // Compute retrieved resources using multiplier
+        foreach (var kvp in summary.CollectedResources)
+        {
+            int retrieved = Mathf.FloorToInt(kvp.Value * multiplier);
+            summary.RetrievedResources[kvp.Key] = retrieved;
+        }
+
+        return summary;
+    }
+
+    /// <summary>Return the resource retrieval multiplier (1.0 / 0.75 / 0.25) for the given run outcome.</summary>
+    public float GetRetrievalMultiplier(RunEndType endType)
+    {
+        switch (endType)
+        {
+            case RunEndType.Completed:
+                return 1.0f;
+            case RunEndType.Extracted:
+                return 0.75f;
+            case RunEndType.Death:
+                return 0.25f;
+            default:
+                return 1.0f;
+        }
+    }
+
+    /// <summary>
+    /// Called when entering the hub with PreserveRunState = true.
+    /// Applies any pending run-end summary (banking only the retrieved resources) or falls back to flushing the full run resources.
+    /// Then clears the current run data so the next run starts fresh.
+    /// </summary>
+    private void HandleEnteringHubWithRunState()
+    {
+        if (_pendingRunEndType.HasValue && _pendingRunSummary != null)
+        {
+            BankRetrievedResourcesToHub(_pendingRunSummary);
+        }
+        else
+        {
+            FlushRunResourcesToHubBank();
+        }
+
+        _currentRun.Clear(); // Run ended: reset health, inventory, rotation, kill count, difficulty etc.; hub bank already updated
+        _pendingRunEndType = null;
+        _pendingRunSummary = null;
+    }
+
+    /// <summary>Bank only the retrieved resources from a run summary into the hub bank.</summary>
+    private void BankRetrievedResourcesToHub(RunSummaryData summary)
+    {
+        if (summary == null || summary.RetrievedResources == null) return;
+
+        foreach (var kvp in summary.RetrievedResources)
+        {
+            if (kvp.Key == null) continue;
+            if (!_hubBank.ContainsKey(kvp.Key))
+                _hubBank[kvp.Key] = 0;
+            _hubBank[kvp.Key] += kvp.Value;
+        }
+
+        UpdateDebugHubBank();
+        Debug.Log($"[GameManager] Banked retrieved run resources to hub bank for outcome {summary.EndType} (retrieval {summary.RetrievalPercentage}%).");
+        NotifyHubBankChanged();
+    }
+
+    private void NotifyHubBankChanged()
+    {
+        OnHubBankChanged?.Invoke();
     }
 
     // --- Meta upgrade helpers ---
