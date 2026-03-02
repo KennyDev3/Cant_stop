@@ -86,6 +86,11 @@ public class LevelObjectiveManager : MonoBehaviour
 
         _currentDepositedValue += value;
 
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.AddGarbageDeposited(value);
+        }
+
         if (_popCoroutine != null) StopCoroutine(_popCoroutine);
         _popCoroutine = StartCoroutine(AnimatePop());
 

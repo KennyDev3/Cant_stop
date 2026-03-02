@@ -121,7 +121,32 @@ public class Portal : MonoBehaviour
             return;
         }
 
+        SceneRequest request = destination.GetRequest();
+
+        // If this portal sends the player back to the Hub, show an in-level run summary first.
+        if (request.Type == SceneRequest.RequestType.Hub)
+        {
+            bool isLastLevel = GameManager.Instance.IsCurrentLevelLastInSequence();
+            RunEndType endType = isLastLevel ? RunEndType.Completed : RunEndType.Extracted;
+
+            // Snapshot current run state (including PlayerResourceHolder) before building the summary.
+            GameManager.Instance.CollectRunState();
+
+            RunSummaryData summary = GameManager.Instance.BuildRunSummary(endType);
+            GameManager.Instance.SetPendingRunEnd(endType, summary);
+
+            var summaryPanel = FindFirstObjectByType<RunSummaryPanelController>();
+            if (summaryPanel != null)
+            {
+                Debug.Log($"<color=cyan>[Portal]</color> Showing run summary for outcome {endType} before returning to Hub.");
+                summaryPanel.Show(summary);
+                return;
+            }
+
+            Debug.LogWarning("[Portal] RunSummaryPanelController not found in scene. Falling back to immediate Hub transition.");
+        }
+
         Debug.Log("<color=cyan>[Portal]</color> Activating: " + destination.name);
-        GameManager.Instance.RequestScene(destination.GetRequest());
+        GameManager.Instance.RequestScene(request);
     }
 }
