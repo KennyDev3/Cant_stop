@@ -55,6 +55,26 @@ public class PlayerGarbageHandler : MonoBehaviour, IRunStateContributor
     public float GetMoney() => _money;
     public int GetCurrentCapacity() => _currentCapacity;
 
+    /// <summary>
+    /// Set the base maximum capacity for the player. Intended for configuration systems (e.g. PlayerConfig).
+    /// Optionally resets the current capacity to keep it within the new bounds.
+    /// </summary>
+    /// <param name="value">New base max capacity.</param>
+    /// <param name="resetCurrentCapacity">
+    /// If true, current capacity is clamped to the new max (and events are raised).
+    /// If false, only the max is changed.
+    /// </param>
+    public void SetBaseMaxCapacity(int value, bool resetCurrentCapacity)
+    {
+        maxCapacity = Mathf.Max(0, value);
+
+        if (resetCurrentCapacity)
+        {
+            _currentCapacity = Mathf.Min(_currentCapacity, maxCapacity);
+            onCapacityChanged?.Invoke(_currentCapacity, maxCapacity);
+        }
+    }
+
     [System.Serializable]
     public class CapacityChangeEvent : UnityEvent<int, int> { }
     public CapacityChangeEvent onCapacityChanged;
