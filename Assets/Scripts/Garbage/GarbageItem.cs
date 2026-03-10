@@ -139,7 +139,7 @@ public class GarbageItem : MonoBehaviour, IInteractable
 
         // Disable normal interaction visuals/collider so we don't double-collect.
         if (interactionCollider != null) interactionCollider.enabled = false;
-        if (targetOutline != null) targetOutline.enabled = false;
+        if (targetOutline != null) targetOutline.enabled = true; // Now Garbage always outlined in Red
         if (_infoUIInstance != null) _infoUIInstance.SetActive(false);
     }
 
