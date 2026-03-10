@@ -59,6 +59,8 @@ public class EnemyHealth : MonoBehaviour
         public float interactableDelay = 0.2f;
     }
 
+    float waitForCorpseToTurnIntoGarbageTime = 1f;
+
     [Space(10)]
     [SerializeField] private RagdollSettings _ragdollConfig;
     [SerializeField] private VisualSettings _visualConfig;
@@ -177,7 +179,8 @@ public class EnemyHealth : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             SoundManager.Instance.Play(_walkOverCorpseSound, transform.position);
-            StartCoroutine(CollectCorpseRoutine());
+            var garbageHandler = other.GetComponentInParent<PlayerGarbageHandler>();
+            StartCoroutine(CollectCorpseRoutine(garbageHandler));
         }
     }
 
@@ -201,14 +204,22 @@ public class EnemyHealth : MonoBehaviour
         _lootHandler.EnableLootInteraction(); // 2. Interaction
     }
 
-    private IEnumerator CollectCorpseRoutine()
+    private IEnumerator CollectCorpseRoutine(PlayerGarbageHandler collector)
     {
         _lootHandler.DisableInteraction(); // Prevent double trigger
 
         if (CorpseManager.Instance != null) CorpseManager.Instance.UnregisterCorpse(this);
 
-        _lootHandler.SpawnGarbageBox(_data); // Spawn loot
-        yield return StartCoroutine(_visualHandler.DissolveRoutine()); // Visual finish
+        // Start the dissolve immediately on player interaction.
+        StartCoroutine(_visualHandler.DissolveRoutine());
+
+        // Spawn loot after a short fixed delay, independent of dissolve timing quirks.
+        yield return new WaitForSeconds(waitForCorpseToTurnIntoGarbageTime);
+        _lootHandler.SpawnGarbageBox(_data, collector);
+
+        // Keep the enemy active long enough for the dissolve to visually complete
+        // before returning this enemy to the pool.
+        yield return new WaitForSeconds(_visualConfig.dissolveDuration);
 
         ReturnToPool();
     }
@@ -471,17 +482,11 @@ public class EnemyHealth : MonoBehaviour
             if (_settings.interactionSensor) _settings.interactionSensor.gameObject.SetActive(false);
         }
 
-        public void SpawnGarbageBox(EnemyData data)
+        public void SpawnGarbageBox(EnemyData data, PlayerGarbageHandler magnetTarget = null)
         {
             if (_settings.garbageBoxPrefab == null || data.garbageDataOnDeath == null) return;
-            _ctx.StartCoroutine(SpawnBoxRoutine(data));
-        }
 
-        private IEnumerator SpawnBoxRoutine(EnemyData data)
-        {
-            yield return new WaitForSeconds(_settings.spawnBoxDelay);
-
-            // Spawn at hips position usually
+            // Spawn immediately after dissolve, before the enemy is returned to the pool.
             Vector3 spawnPos = _ctx.transform.position;
             if (_ctx._ragdollConfig.rootBone != null)
                 spawnPos = _ctx._ragdollConfig.rootBone.position;
@@ -492,6 +497,12 @@ public class EnemyHealth : MonoBehaviour
             {
                 gItem.isPooledObject = false;
                 gItem.ActivatePooledInteractable(data.garbageDataOnDeath);
+
+                // If configured, immediately start magnet pickup toward the player who collected the corpse
+                if (magnetTarget != null && data.garbageDataOnDeath.useMagnetPickup)
+                {
+                    gItem.StartMagnet(magnetTarget.transform, magnetTarget);
+                }
             }
         }
     }
